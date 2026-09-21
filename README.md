@@ -1,99 +1,41 @@
-# PluriOne - Portal de Reclutamiento
+# PluriOne - Plataforma de Reclutamiento Omnicanal 🚀
 
-PluriOne es una plataforma de reclutamiento omnicanal para gestionar vacantes,
-candidatos y postulaciones. El proyecto está organizado como una aplicación
-cliente-servidor con una API REST y una interfaz web para administrar la
-información del proceso de selección.
+PluriOne es un sistema integral de reclutamiento que centraliza postulaciones mediante arquitectura omnicanal y utiliza agentes inteligentes para evaluar la compatibilidad de los candidatos.
 
-## Tecnologías utilizadas
+## 🛠 Tecnologías Utilizadas
+* **Backend:** FastAPI (Python), SQLAlchemy, PostgreSQL.
+* **Frontend:** React (Vite), Tailwind CSS, Recharts, Lucide-React.
+* **Inteligencia Artificial:** LangChain (Módulo preparado para Azure OpenAI / Simulado para desarrollo).
+* **Infraestructura:** Docker y Docker Compose.
 
-- **Backend:** FastAPI, Uvicorn y SQLAlchemy.
-- **Base de datos:** PostgreSQL.
-- **Frontend:** React con Vite.
-- **Estilos:** Tailwind CSS.
-- **Interfaz:** React Router, Axios, `react-hot-toast` y `lucide-react`.
-- **Comunicación:** API REST.
+## ✨ Características Principales
+1. **Omnicanalidad (Webhooks):** Recepción automatizada de candidatos desde bolsas de empleo externas a través del endpoint `/api/v1/webhooks/candidatos`.
+2. **Agente Inteligente Evaluador:** Análisis de compatibilidad semántica entre los requerimientos de la vacante y las habilidades del candidato.
+3. **Dashboard Analítico:** Visualización en tiempo real del origen de los candidatos (OCC, LinkedIn, etc.) y volumen de postulaciones.
 
-## Requisitos previos
+## 🚀 Guía de Instalación (Modo Manual)
 
-- Python 3.11 o posterior.
-- Node.js y npm.
-- PostgreSQL ejecutándose localmente.
+### 1. Base de Datos
+Asegúrate de tener PostgreSQL corriendo localmente en el puerto 5432 con una base de datos llamada `plurione_db`.
 
-## Encender el backend
+### 2. Backend (FastAPI)
+```bash
+cd backend
+python -m venv .venv
+# Activar entorno (Windows): .\.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
 
-Desde la raíz del proyecto, abre una terminal y ejecuta:
+### 3. Frontend (React)
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-1. Crea el entorno virtual dentro de `backend`:
-
-   ```powershell
-   python -m venv backend\.venv
-   ```
-
-2. Activa el entorno virtual en PowerShell:
-
-   ```powershell
-   . .\backend\.venv\Scripts\Activate.ps1
-   ```
-
-   Si PowerShell bloquea la activación, puedes habilitarla solo para la sesión
-   actual:
-
-   ```powershell
-   Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
-   ```
-
-3. Instala las dependencias:
-
-   ```powershell
-   python -m pip install -r backend\requirements.txt
-   ```
-
-4. Crea `backend\.env` con la URL de conexión a PostgreSQL. Usa tus propias
-   credenciales y no las publiques en el repositorio:
-
-   ```dotenv
-   DATABASE_URL=postgresql://USUARIO:CONTRASENA@localhost:5432/plurione_db
-   ```
-
-5. Inicia el servidor desde la raíz del proyecto:
-
-   ```powershell
-   Set-Location backend
-   python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
-   ```
-
-   La API estará disponible en `http://127.0.0.1:8000`. La documentación
-   interactiva de FastAPI se encuentra en `http://127.0.0.1:8000/docs`.
-
-## Encender el frontend
-
-Con Node.js instalado, abre otra terminal desde la raíz del proyecto y ejecuta:
-
-1. Entra en la carpeta del frontend:
-
-   ```powershell
-   Set-Location frontend
-   ```
-
-2. Instala las dependencias de React, Axios, React Router, Tailwind,
-   `react-hot-toast` y `lucide-react`:
-
-   ```powershell
-   npm install
-   ```
-
-3. Inicia el servidor de desarrollo de Vite:
-
-   ```powershell
-   npm run dev
-   ```
-
-   El frontend estará disponible en la URL que muestre Vite, normalmente
-   `http://localhost:5173`.
-
-## Seguridad de configuración
-
-El archivo `backend/.env` contiene configuración local y está excluido del
-control de versiones mediante `.gitignore`. No compartas contraseñas reales ni
-las incluyas directamente en el código o en la documentación pública.
+## 🐳 Ejecución con Docker
+Para levantar todo el ecosistema (PostgreSQL, Backend y Frontend) con un solo comando:
+```bash
+docker-compose up --build
+```

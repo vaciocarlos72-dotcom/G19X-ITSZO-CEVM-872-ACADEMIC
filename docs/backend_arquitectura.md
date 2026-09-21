@@ -82,3 +82,5 @@ en ambos textos y obtiene un `score_compatibilidad` porcentual entre `0` y
 
 El resultado se guarda en la postulación junto con
 `justificacion_agente`, por ejemplo: `Coincide en 2 palabras clave.`.
+
+Se integró Webhook en /api/v1/webhooks/candidatos para recepción externa y un módulo de Agente Evaluador Simulado en ia_agent.py.

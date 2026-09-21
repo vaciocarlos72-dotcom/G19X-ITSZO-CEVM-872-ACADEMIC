@@ -100,3 +100,5 @@ rutas mediante `Routes` y `Route`. Actualmente existe una ruta principal:
 
 Esta estructura permite agregar nuevas vistas y rutas sin concentrar toda la
 lógica de navegación en un solo componente.
+
+Se migró el layout a un diseño SaaS con Sidebar y un Dashboard analítico utilizando recharts.
