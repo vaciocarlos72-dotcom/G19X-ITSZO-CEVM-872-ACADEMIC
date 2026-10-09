@@ -1,4 +1,4 @@
-# PluriOne - Plataforma de Reclutamiento Omnicanal 🚀
+# PluriOne - Plataforma de Reclutamiento Omnicanal 
 
 PluriOne es un sistema integral de reclutamiento que centraliza postulaciones mediante arquitectura omnicanal y utiliza agentes inteligentes para evaluar la compatibilidad de los candidatos.
 
@@ -8,12 +8,12 @@ PluriOne es un sistema integral de reclutamiento que centraliza postulaciones me
 * **Inteligencia Artificial:** LangChain (Módulo preparado para Azure OpenAI / Simulado para desarrollo).
 * **Infraestructura:** Docker y Docker Compose.
 
-## ✨ Características Principales
+##  Características Principales
 1. **Omnicanalidad (Webhooks):** Recepción automatizada de candidatos desde bolsas de empleo externas a través del endpoint `/api/v1/webhooks/candidatos`.
 2. **Agente Inteligente Evaluador:** Análisis de compatibilidad semántica entre los requerimientos de la vacante y las habilidades del candidato.
 3. **Dashboard Analítico:** Visualización en tiempo real del origen de los candidatos (OCC, LinkedIn, etc.) y volumen de postulaciones.
 
-## 🚀 Guía de Instalación (Modo Manual)
+##  Guía de Instalación (Modo Manual)
 
 ### 1. Base de Datos
 Asegúrate de tener PostgreSQL corriendo localmente en el puerto 5432 con una base de datos llamada `plurione_db`.
