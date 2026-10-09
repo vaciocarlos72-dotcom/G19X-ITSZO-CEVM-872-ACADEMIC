@@ -2,7 +2,7 @@
 
 PluriOne es un sistema integral de reclutamiento que centraliza postulaciones mediante arquitectura omnicanal y utiliza agentes inteligentes para evaluar la compatibilidad de los candidatos.
 
-## 🛠 Tecnologías Utilizadas
+##  Tecnologías Utilizadas
 * **Backend:** FastAPI (Python), SQLAlchemy, PostgreSQL.
 * **Frontend:** React (Vite), Tailwind CSS, Recharts, Lucide-React.
 * **Inteligencia Artificial:** LangChain (Módulo preparado para Azure OpenAI / Simulado para desarrollo).
@@ -34,7 +34,7 @@ npm install
 npm run dev
 ```
 
-## 🐳 Ejecución con Docker
+##  Ejecución con Docker
 Para levantar todo el ecosistema (PostgreSQL, Backend y Frontend) con un solo comando:
 ```bash
 docker-compose up --build
