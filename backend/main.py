@@ -1,15 +1,25 @@
 """Aplicacion inicial del backend de PluriOne."""
 
+import os
+import secrets
 from collections.abc import Generator
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
 from database import SessionLocal, engine
-from ia_agent import evaluar_candidato_simulado
+from ia_agent import evaluar_candidato, extraer_texto_pdf
 import models
 from schemas import (
     CandidatoCreate,
@@ -39,6 +49,27 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def validar_api_key_webhook(
+    api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> None:
+    """Valida la clave configurada para recibir candidatos vía Webhook."""
+    api_key_configurada = os.getenv("WEBHOOK_API_KEY")
+    if not api_key_configurada:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La autenticación del Webhook no está configurada.",
+        )
+
+    if api_key is None or not secrets.compare_digest(
+        api_key.encode("utf-8"),
+        api_key_configurada.encode("utf-8"),
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API Key inválida o ausente.",
+        )
 
 
 @app.get("/")
@@ -74,6 +105,7 @@ def create_candidato(
 @app.post("/api/v1/webhooks/candidatos", tags=["Integraciones Omnicanal"])
 def receive_candidate_webhook(
     candidato_data: CandidatoCreate,
+    _: None = Depends(validar_api_key_webhook),
     db: Session = Depends(get_db),
 ):
     """Recibe candidatos enviados automáticamente por fuentes externas."""
@@ -209,9 +241,9 @@ def evaluar_postulacion(postulacion_id: int, db: Session = Depends(get_db)):
     candidato = postulacion.candidato
     vacante = postulacion.vacante
 
-    resultado_agente = evaluar_candidato_simulado(
-        vacante.descripcion,
+    resultado_agente = evaluar_candidato(
         candidato.habilidades,
+        vacante.descripcion,
     )
     postulacion.score_compatibilidad = resultado_agente["score"]
     postulacion.justificacion_agente = resultado_agente["justificacion"]
@@ -228,9 +260,13 @@ def evaluar_postulacion(postulacion_id: int, db: Session = Depends(get_db)):
     return postulacion
 
 
-@app.delete("/vacantes/{vacante_id}")
-def delete_vacante(vacante_id: int, db: Session = Depends(get_db)):
-    """Elimina una vacante existente por su identificador."""
+@app.post("/agente/evaluar-cv/{vacante_id}")
+async def evaluar_cv_pdf(
+    vacante_id: int,
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Evalua un CV PDF contra una vacante sin persistir el archivo."""
     vacante = db.get(models.Vacante, vacante_id)
     if vacante is None:
         raise HTTPException(
@@ -238,23 +274,76 @@ def delete_vacante(vacante_id: int, db: Session = Depends(get_db)):
             detail="Vacante no encontrada.",
         )
 
-    db.delete(vacante)
-    db.commit()
+    if archivo.content_type != "application/pdf":
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="El archivo debe ser un PDF.",
+        )
+
+    contenido = await archivo.read(10 * 1024 * 1024 + 1)
+    if len(contenido) > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="El PDF no puede superar los 10 MB.",
+        )
+    if not contenido.startswith(b"%PDF-"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo no contiene un PDF válido.",
+        )
+
+    try:
+        texto_cv = extraer_texto_pdf(contenido)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return evaluar_candidato(texto_cv, vacante.descripcion)
+
+
+@app.delete("/vacantes/{vacante_id}")
+def delete_vacante(vacante_id: int, db: Session = Depends(get_db)):
+    """Elimina una vacante existente por su identificador."""
+    try:
+        vacante = db.get(models.Vacante, vacante_id)
+        if vacante is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Vacante no encontrada.",
+            )
+
+        db.delete(vacante)
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo eliminar la vacante por un error de base de datos.",
+        ) from exc
     return {"mensaje": "Eliminado correctamente"}
 
 
 @app.delete("/candidatos/{candidato_id}")
 def delete_candidato(candidato_id: int, db: Session = Depends(get_db)):
     """Elimina un candidato existente por su identificador."""
-    candidato = db.get(models.Candidato, candidato_id)
-    if candidato is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Candidato no encontrado.",
-        )
+    try:
+        candidato = db.get(models.Candidato, candidato_id)
+        if candidato is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Candidato no encontrado.",
+            )
 
-    db.delete(candidato)
-    db.commit()
+        db.delete(candidato)
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo eliminar el candidato por un error de base de datos.",
+        ) from exc
     return {"mensaje": "Eliminado correctamente"}
 
 

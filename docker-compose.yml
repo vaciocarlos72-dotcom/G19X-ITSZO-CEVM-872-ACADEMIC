@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15
@@ -7,7 +5,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: RapLife16
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in the root .env file}
       POSTGRES_DB: plurione_db
     ports:
       - "5432:5432"
@@ -16,10 +14,12 @@ services:
     build: ./backend
     container_name: plurione_backend
     restart: always
+    env_file:
+      - ./backend/.env
     depends_on:
       - db
     environment:
-      DATABASE_URL: postgresql://postgres:RapLife16@db:5432/plurione_db
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in the root .env file}@db:5432/plurione_db
     ports:
       - "8000:8000"
 
