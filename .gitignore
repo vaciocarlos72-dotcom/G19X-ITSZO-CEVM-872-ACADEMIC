@@ -1,0 +1,39 @@
+# Entornos virtuales
+backend/.venv/
+backend/venv/
+.venv/
+venv/
+
+# Variables de entorno
+backend/.env
+.env
+.env.*
+!.env.example
+
+# Cache y archivos compilados de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Herramientas de calidad y pruebas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Empaquetado y distribucion
+build/
+dist/
+*.egg-info/
+
+# Configuracion local de IDE y sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Bases de datos locales
+*.db
+*.sqlite
+*.sqlite3
