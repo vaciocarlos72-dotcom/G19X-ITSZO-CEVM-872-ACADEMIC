@@ -15,11 +15,6 @@ PluriOne es un sistema integral de reclutamiento que centraliza postulaciones me
 
 ##  Guía de Instalación (Modo Manual)
 
-Antes de iniciar el backend, crea `backend/.env` copiando `backend/.env.example`
-y ajusta `DATABASE_URL` y `POSTGRES_PASSWORD` para tu entorno. El frontend lee la
-URL de la API desde `VITE_API_URL`; para desarrollo local crea `frontend/.env`
-copiando `frontend/.env.example`.
-
 ### 1. Base de Datos
 Asegúrate de tener PostgreSQL corriendo localmente en el puerto 5432 con una base de datos llamada `plurione_db`.
 
@@ -40,10 +35,6 @@ npm run dev
 ```
 
 ##  Ejecución con Docker
-Antes de iniciar Compose, copia `.env.example` a `.env` en la raíz y reemplaza
-`POSTGRES_PASSWORD` por una contraseña segura. No compartas ni subas el archivo
-`.env`. `BACKEND_CORS_ORIGINS` y `VITE_API_URL` también pueden ajustarse allí.
-
 Para levantar todo el ecosistema (PostgreSQL, Backend y Frontend) con un solo comando:
 ```bash
 docker-compose up --build

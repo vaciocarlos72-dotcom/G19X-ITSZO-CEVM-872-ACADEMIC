@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import Candidatos from './components/Candidatos'
+import CandidatosList from './components/CandidatosList'
 import CrearCandidato from './components/CrearCandidato'
 import CrearVacante from './components/CrearVacante'
 import Dashboard from './components/Dashboard'
 import Navbar from './components/Navbar'
-import Vacantes from './components/Vacantes'
+import VacantesList from './components/VacantesList'
 
 function App() {
   return (
@@ -37,7 +37,7 @@ function VacantesRoute() {
       <CrearVacante
         onCreated={() => setRefreshTrigger((value) => value + 1)}
       />
-      <Vacantes refreshTrigger={refreshTrigger} />
+      <VacantesList refreshTrigger={refreshTrigger} />
     </>
   )
 }
@@ -51,7 +51,7 @@ function CandidatosRoute() {
       <CrearCandidato
         onCreated={() => setRefreshTrigger((value) => value + 1)}
       />
-      <Candidatos refreshTrigger={refreshTrigger} />
+      <CandidatosList refreshTrigger={refreshTrigger} />
     </>
   )
 }

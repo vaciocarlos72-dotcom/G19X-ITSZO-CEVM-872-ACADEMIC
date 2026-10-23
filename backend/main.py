@@ -1,6 +1,5 @@
 """Aplicacion inicial del backend de PluriOne."""
 
-import os
 from collections.abc import Generator
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -23,20 +22,12 @@ from schemas import (
 
 
 app = FastAPI()
-cors_origins = [
-    origin.strip()
-    for origin in os.getenv(
-        "BACKEND_CORS_ORIGINS",
-        "http://localhost:5173",
-    ).split(",")
-    if origin.strip()
-]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 models.Base.metadata.create_all(bind=engine)
 
