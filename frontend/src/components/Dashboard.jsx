@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Bar,
   BarChart,
+  CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -11,152 +11,343 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { Activity, Mail, MessageCircle, UsersRound } from 'lucide-react'
 import api from '../api'
 
-const coloresOrigen = [
-  '#4f46e5',
-  '#9333ea',
-  '#ec4899',
-  '#0891b2',
-  '#16a34a',
-  '#ea580c',
+const CANALES = [
+  { name: 'Webhook', color: '#4f46e5' },
+  { name: 'WhatsApp', color: '#16a34a' },
+  { name: 'Email', color: '#0891b2' },
+  { name: 'Otros', color: '#94a3b8' },
 ]
 
+const normalizarCanal = (canal = '') => {
+  const origen = canal.trim().toLowerCase()
+  if (origen.includes('whatsapp')) return 'WhatsApp'
+  if (origen.includes('email') || origen.includes('correo')) return 'Email'
+  if (
+    origen.includes('webhook') ||
+    origen.includes('api') ||
+    origen.includes('omnicanal')
+  ) {
+    return 'Webhook'
+  }
+  return 'Otros'
+}
+
+const formatearFecha = (fecha) => {
+  if (!fecha) return 0
+  const timestamp = new Date(fecha).getTime()
+  return Number.isNaN(timestamp) ? 0 : timestamp
+}
+
+const nombreCorto = (nombre = '') => {
+  const partes = nombre.trim().split(/\s+/)
+  return partes.length > 1 ? `${partes[0]} ${partes[1][0]}.` : nombre
+}
+
 function Dashboard() {
-  const [totalVacantes, setTotalVacantes] = useState(0)
-  const [totalCandidatos, setTotalCandidatos] = useState(0)
   const [candidatos, setCandidatos] = useState([])
-  const [postulacionesPorVacante, setPostulacionesPorVacante] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let isMounted = true
 
-    const fetchSummary = async () => {
+    const cargarCandidatos = async () => {
       try {
-        const [vacantesResponse, candidatosResponse] = await Promise.all([
-          api.get('/vacantes/'),
-          api.get('/candidatos/'),
-        ])
-        const postulacionesResponse = await Promise.all(
-          vacantesResponse.data.map(async (vacante) => {
-            const response = await api.get(
-              `/vacantes/${vacante.id}/postulaciones`,
-            )
-            return {
-              name: vacante.titulo,
-              postulaciones: response.data.length,
-            }
-          }),
-        )
-
-        if (isMounted) {
-          setTotalVacantes(vacantesResponse.data.length)
-          setTotalCandidatos(candidatosResponse.data.length)
-          setCandidatos(candidatosResponse.data)
-          setPostulacionesPorVacante(postulacionesResponse)
-        }
+        const response = await api.get('/candidatos/')
+        if (isMounted) setCandidatos(response.data)
       } catch {
         if (isMounted) {
-          setError('No se pudieron cargar los datos del resumen.')
+          setError('No se pudieron cargar las métricas del Dashboard.')
         }
       } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
+        if (isMounted) setLoading(false)
       }
     }
 
-    fetchSummary()
-
+    cargarCandidatos()
     return () => {
       isMounted = false
     }
   }, [])
 
-  const origenCandidatos = useMemo(() => {
-    const agrupados = candidatos.reduce((totales, candidato) => {
-      const canal = candidato.canal_origen?.trim() || 'No especificado'
-      totales[canal] = (totales[canal] || 0) + 1
-      return totales
-    }, {})
-
-    return Object.entries(agrupados).map(([name, value]) => ({
-      name,
-      value,
+  const resumen = useMemo(() => {
+    const distribucion = CANALES.map((canal) => ({
+      ...canal,
+      value: 0,
     }))
+    const conteoPorCanal = new Map(
+      distribucion.map((canal) => [canal.name, canal]),
+    )
+
+    candidatos.forEach((candidato) => {
+      const canal = normalizarCanal(candidato.canal_origen)
+      conteoPorCanal.get(canal).value += 1
+    })
+
+    const puntuaciones = candidatos.flatMap((candidato) =>
+      (candidato.postulaciones || [])
+        .filter(
+          (postulacion) =>
+            typeof postulacion.score_compatibilidad === 'number' &&
+            Number.isFinite(postulacion.score_compatibilidad),
+        )
+        .map((postulacion) => ({
+          candidato: candidato.nombre || 'Candidato',
+          score: postulacion.score_compatibilidad,
+          fecha: postulacion.fecha_postulacion,
+          id: postulacion.id,
+        })),
+    )
+
+    puntuaciones.sort((a, b) => formatearFecha(b.fecha) - formatearFecha(a.fecha))
+    const scoresRecientes = puntuaciones.slice(0, 8).reverse()
+    const promedio =
+      puntuaciones.length > 0
+        ? Math.round(
+            puntuaciones.reduce((total, item) => total + item.score, 0) /
+              puntuaciones.length,
+          )
+        : null
+    const canalPrincipal =
+      distribucion
+        .filter((canal) => canal.name !== 'Otros')
+        .sort((a, b) => b.value - a.value)[0]
+
+    return {
+      distribucion: distribucion.filter((canal) => canal.value > 0),
+      scoresRecientes,
+      promedio,
+      canalPrincipal:
+        canalPrincipal?.value > 0 ? canalPrincipal.name : 'Sin datos',
+    }
   }, [candidatos])
 
+  const metricas = [
+    {
+      etiqueta: 'Total de candidatos',
+      valor: candidatos.length,
+      detalle: 'Perfiles registrados en la plataforma',
+      icono: UsersRound,
+      iconoClase: 'bg-indigo-50 text-indigo-600',
+    },
+    {
+      etiqueta: 'Promedio general de score IA',
+      valor: resumen.promedio === null ? '—' : `${resumen.promedio}%`,
+      detalle:
+        resumen.promedio === null
+          ? 'Aún no hay evaluaciones con score'
+          : 'Promedio de postulaciones evaluadas',
+      icono: Activity,
+      iconoClase: 'bg-violet-50 text-violet-600',
+    },
+    {
+      etiqueta: 'Canal de recepción principal',
+      valor: resumen.canalPrincipal,
+      detalle: 'Canal con más candidatos registrados',
+      icono:
+        resumen.canalPrincipal === 'Email'
+          ? Mail
+          : resumen.canalPrincipal === 'WhatsApp'
+            ? MessageCircle
+            : UsersRound,
+      iconoClase: 'bg-emerald-50 text-emerald-600',
+    },
+  ]
+
   if (loading) {
-    return <p className="text-gray-600">Cargando resumen...</p>
+    return (
+      <div className="flex min-h-64 items-center justify-center">
+        <p className="text-sm font-medium text-slate-500" role="status">
+          Cargando métricas...
+        </p>
+      </div>
+    )
   }
 
   if (error) {
-    return <p className="text-red-700" role="alert">{error}</p>
+    return (
+      <p
+        className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"
+        role="alert"
+      >
+        {error}
+      </p>
+    )
   }
 
   return (
-    <section>
-      <h1 className="mb-8 text-3xl font-bold text-gray-900">
-        Resumen de Reclutamiento
-      </h1>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <article className="rounded-xl border border-gray-100 bg-blue-600 p-8 text-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-          <p className="text-lg font-medium text-blue-100">Total de Vacantes</p>
-          <p className="mt-2 text-5xl font-bold">{totalVacantes}</p>
-        </article>
-        <article className="rounded-xl border border-gray-100 bg-slate-800 p-8 text-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-          <p className="text-lg font-medium text-slate-300">
-            Candidatos Registrados
-          </p>
-          <p className="mt-2 text-5xl font-bold">{totalCandidatos}</p>
-        </article>
+    <section className="space-y-6 pb-8">
+      <header>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
+          Panel de control
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+          Analítica de reclutamiento
+        </h1>
+        <p className="mt-2 text-sm text-slate-500">
+          Canales de recepción y resultados de afinidad generados por IA.
+        </p>
+      </header>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {metricas.map(({ etiqueta, valor, detalle, icono: Icon, iconoClase }) => (
+          <article
+            key={etiqueta}
+            className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-500">{etiqueta}</p>
+                <p className="mt-3 truncate text-3xl font-bold tracking-tight text-slate-900">
+                  {valor}
+                </p>
+              </div>
+              <span className={`rounded-xl p-3 ${iconoClase}`}>
+                <Icon size={20} aria-hidden="true" />
+              </span>
+            </div>
+            <p className="mt-4 text-xs text-slate-500">{detalle}</p>
+          </article>
+        ))}
       </div>
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <article className="rounded-xl border border-gray-100 bg-white p-6 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-          <h2 className="mb-4 text-xl font-semibold text-gray-900">
-            Postulaciones por vacante
-          </h2>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={postulacionesPorVacante}>
-                <XAxis dataKey="name" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="postulaciones" fill="#4f46e5" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">
+              Candidatos por canal de recepción
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Distribución de Webhook, WhatsApp y Email
+            </p>
+          </div>
+          {resumen.distribucion.length === 0 ? (
+            <div className="flex h-64 items-center justify-center text-sm text-slate-400">
+              Aún no hay candidatos registrados.
+            </div>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={resumen.distribucion}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={58}
+                    outerRadius={88}
+                    paddingAngle={3}
+                    stroke="none"
+                  >
+                    {resumen.distribucion.map((canal) => (
+                      <Cell key={canal.name} fill={canal.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value, name) => [value, name]}
+                    contentStyle={{
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {CANALES.map((canal) => {
+              const cantidad =
+                resumen.distribucion.find((item) => item.name === canal.name)
+                  ?.value || 0
+              return (
+                <div key={canal.name} className="flex items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: canal.color }}
+                  />
+                  <span className="truncate text-xs text-slate-500">
+                    {canal.name}
+                  </span>
+                  <span className="ml-auto text-xs font-semibold text-slate-800">
+                    {cantidad}
+                  </span>
+                </div>
+              )
+            })}
           </div>
         </article>
-        <article className="rounded-xl border border-gray-100 bg-white p-6 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-          <h2 className="mb-4 text-xl font-semibold text-gray-900">
-            Origen de candidatos
-          </h2>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={origenCandidatos}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="45%"
-                  outerRadius={100}
-                  label
-                >
-                  {origenCandidatos.map((entry, index) => (
-                    <Cell
-                      key={entry.name}
-                      fill={coloresOrigen[index % coloresOrigen.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+
+        <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">
+              Scores de afinidad IA
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Evaluaciones más recientes por candidato
+            </p>
           </div>
+          {resumen.scoresRecientes.length === 0 ? (
+            <div className="flex h-64 items-center justify-center text-sm text-slate-400">
+              Aún no hay scores de afinidad evaluados.
+            </div>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={resumen.scoresRecientes}
+                  margin={{ top: 8, right: 8, left: -18, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    vertical={false}
+                    stroke="#e2e8f0"
+                    strokeDasharray="4 4"
+                  />
+                  <XAxis
+                    dataKey="candidato"
+                    tickFormatter={nombreCorto}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                    interval={0}
+                    angle={-20}
+                    textAnchor="end"
+                    height={54}
+                  />
+                  <YAxis
+                    domain={[0, 100]}
+                    tickFormatter={(value) => `${value}%`}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  />
+                  <Tooltip
+                    formatter={(value) => [`${value}%`, 'Afinidad']}
+                    labelFormatter={(label) => `Candidato: ${label}`}
+                    contentStyle={{
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
+                    }}
+                  />
+                  <Bar
+                    dataKey="score"
+                    name="Score IA"
+                    fill="#4f46e5"
+                    radius={[5, 5, 0, 0]}
+                    maxBarSize={38}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <p className="mt-2 text-xs text-slate-400">
+            El score es una referencia para el equipo de reclutamiento.
+          </p>
         </article>
       </div>
     </section>
