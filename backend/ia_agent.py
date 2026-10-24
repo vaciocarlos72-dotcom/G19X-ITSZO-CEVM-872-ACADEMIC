@@ -10,7 +10,7 @@ from google import genai
 from google.genai.errors import APIError
 import httpx
 from PyPDF2 import PdfReader
-from PyPDF2.errors import PdfReadError
+from PyPDF2.errors import EmptyFileError, PdfReadError, PdfStreamError
 
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,13 @@ def extraer_texto_pdf(contenido: bytes) -> str:
         texto = "\n".join(
             pagina.extract_text() or "" for pagina in lector.pages
         ).strip()
-    except (PdfReadError, ValueError) as exc:
+    except (
+        EmptyFileError,
+        PdfReadError,
+        PdfStreamError,
+        OSError,
+        ValueError,
+    ) as exc:
         raise ValueError("El archivo no contiene un PDF legible.") from exc
 
     if not texto:

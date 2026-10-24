@@ -43,6 +43,8 @@ responsable de interpretar el resultado y tomar decisiones.
 ### 4.2 Recepción y lectura de CV
 
 - Recibir un CV en formato PDF asociado a una vacante.
+- Cargar un CV para un candidato y una vacante mediante
+  `POST /api/v1/candidatos/{candidato_id}/cv` y `vacante_id`.
 - Aceptar archivos de hasta 10 MB.
 - Extraer texto del PDF para su evaluación.
 - Rechazar archivos que no sean PDFs válidos o que no contengan texto legible.

@@ -10,6 +10,7 @@ from fastapi import (
     File,
     Header,
     HTTPException,
+    Query,
     UploadFile,
     status,
 )
@@ -24,10 +25,12 @@ import models
 from schemas import (
     CandidatoCreate,
     CandidatoResponse,
+    EmailWebhookPayload,
     PostulacionCreate,
     PostulacionResponse,
     VacanteCreate,
     VacanteResponse,
+    WhatsAppWebhookPayload,
 )
 
 
@@ -125,6 +128,95 @@ def receive_candidate_webhook(
         "mensaje": "Candidato recibido vía Webhook exitosamente",
         "id": candidato.id,
     }
+
+
+def _registrar_candidato_omnicanal(
+    candidato_data: CandidatoCreate,
+    db: Session,
+) -> dict[str, int | str]:
+    candidato = models.Candidato(**candidato_data.model_dump(exclude_unset=True))
+    try:
+        db.add(candidato)
+        db.commit()
+        db.refresh(candidato)
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo registrar el candidato del canal.",
+        ) from exc
+
+    return {
+        "mensaje": "Candidato registrado correctamente.",
+        "id": candidato.id,
+        "nombre": candidato.nombre,
+        "canal_origen": candidato.canal_origen,
+    }
+
+
+@app.post(
+    "/api/v1/canales/whatsapp",
+    tags=["Integraciones Omnicanal"],
+    status_code=status.HTTP_201_CREATED,
+)
+def receive_whatsapp_candidate(
+    payload: WhatsAppWebhookPayload,
+    _: None = Depends(validar_api_key_webhook),
+    db: Session = Depends(get_db),
+):
+    """Normaliza y registra un candidato recibido por WhatsApp Business."""
+    if payload.object != "whatsapp_business_account":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El evento no corresponde a una cuenta de WhatsApp Business.",
+        )
+
+    try:
+        value = payload.entry[0].changes[0].value
+        contact = value.contacts[0]
+        message = next(
+            item for item in value.messages if item.sender_id == contact.wa_id
+        )
+    except (IndexError, StopIteration) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El evento de WhatsApp no contiene un contacto y mensaje válidos.",
+        ) from exc
+
+    candidato_data = CandidatoCreate(
+        nombre=contact.profile.name.strip(),
+        email=value.candidate_email.strip(),
+        telefono=contact.wa_id,
+        canal_origen="WhatsApp",
+        habilidades=message.text.body.strip() or None,
+    )
+    return _registrar_candidato_omnicanal(candidato_data, db)
+
+
+@app.post(
+    "/api/v1/canales/email",
+    tags=["Integraciones Omnicanal"],
+    status_code=status.HTTP_201_CREATED,
+)
+def receive_email_candidate(
+    payload: EmailWebhookPayload,
+    _: None = Depends(validar_api_key_webhook),
+    db: Session = Depends(get_db),
+):
+    """Normaliza y registra un candidato recibido desde un proveedor de correo."""
+    if payload.event != "email.received":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El evento de correo no es compatible.",
+        )
+
+    candidato_data = CandidatoCreate(
+        nombre=payload.sender.name.strip(),
+        email=payload.sender.email.strip(),
+        canal_origen="Email",
+        habilidades=payload.message.text.strip() or None,
+    )
+    return _registrar_candidato_omnicanal(candidato_data, db)
 
 
 @app.get("/candidatos/", response_model=list[CandidatoResponse])
@@ -301,6 +393,87 @@ async def evaluar_cv_pdf(
         ) from exc
 
     return evaluar_candidato(texto_cv, vacante.descripcion)
+
+
+@app.post("/api/v1/candidatos/{candidato_id}/cv")
+async def cargar_cv_candidato(
+    candidato_id: int,
+    archivo: UploadFile = File(...),
+    vacante_id: int = Query(
+        ...,
+        description="Vacante a la que está asociada la postulación del candidato.",
+    ),
+    db: Session = Depends(get_db),
+):
+    """Carga un CV en memoria y lo evalúa para una vacante del candidato."""
+    candidato = db.get(models.Candidato, candidato_id)
+    if candidato is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidato no encontrado.",
+        )
+
+    vacante = db.get(models.Vacante, vacante_id)
+    if vacante is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vacante no encontrada.",
+        )
+
+    postulacion = db.scalar(
+        select(models.Postulacion).where(
+            models.Postulacion.candidato_id == candidato_id,
+            models.Postulacion.vacante_id == vacante_id,
+        )
+    )
+    if postulacion is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El candidato no tiene una postulación para esta vacante.",
+        )
+
+    try:
+        contenido = await archivo.read(10 * 1024 * 1024 + 1)
+        if len(contenido) > 10 * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="El PDF no puede superar los 10 MB.",
+            )
+        if not contenido.startswith(b"%PDF-"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El archivo está vacío o no es un PDF válido.",
+            )
+
+        texto_cv = extraer_texto_pdf(contenido)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se pudo leer el PDF: {exc}",
+        ) from exc
+    finally:
+        await archivo.close()
+
+    resultado = evaluar_candidato(texto_cv, vacante.descripcion)
+    postulacion.score_compatibilidad = resultado["score"]
+    postulacion.justificacion_agente = resultado["justificacion"]
+
+    try:
+        db.commit()
+        db.refresh(postulacion)
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo guardar la evaluación del CV.",
+        ) from exc
+
+    return {
+        "candidato_id": candidato.id,
+        "vacante_id": vacante.id,
+        "postulacion_id": postulacion.id,
+        **resultado,
+    }
 
 
 @app.delete("/vacantes/{vacante_id}")

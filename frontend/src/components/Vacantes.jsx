@@ -7,13 +7,15 @@ import {
   Edit,
   Laptop,
   MapPin,
+  LoaderCircle,
   Trash2,
+  Upload,
   UserPlus,
   UsersRound,
   X,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import api from '../api'
+import api, { API_BASE_URL } from '../api'
 
 const vacantesDemo = [
   {
@@ -73,6 +75,10 @@ function Vacantes({ refreshTrigger }) {
   const [candidatoSeleccionado, setCandidatoSeleccionado] = useState({})
   const [vacanteExpandida, setVacanteExpandida] = useState(null)
   const [postulacionesActivas, setPostulacionesActivas] = useState([])
+  const [cvSeleccionados, setCvSeleccionados] = useState({})
+  const [evaluacionesCv, setEvaluacionesCv] = useState({})
+  const [erroresCv, setErroresCv] = useState({})
+  const [evaluandoCv, setEvaluandoCv] = useState({})
 
   const getEstadoBadge = (estado) => {
     const estadoNormalizado = (estado || '').toLowerCase()
@@ -260,6 +266,115 @@ function Vacantes({ refreshTrigger }) {
       toast.success('Postulación evaluada correctamente.')
     } catch {
       toast.error('No se pudo evaluar la postulación.')
+    }
+  }
+
+  const seleccionarCv = (postulacionId, archivo) => {
+    setCvSeleccionados((actuales) => ({
+      ...actuales,
+      [postulacionId]: archivo,
+    }))
+    setEvaluacionesCv((actuales) => ({
+      ...actuales,
+      [postulacionId]: null,
+    }))
+    setErroresCv((actuales) => ({
+      ...actuales,
+      [postulacionId]: '',
+    }))
+  }
+
+  const subirCvYEvaluar = async (postulacion, vacanteId) => {
+    const archivo = cvSeleccionados[postulacion.id]
+    if (!archivo) {
+      setErroresCv((actuales) => ({
+        ...actuales,
+        [postulacion.id]: 'Selecciona un archivo PDF antes de evaluar.',
+      }))
+      return
+    }
+
+    if (!archivo.name.toLowerCase().endsWith('.pdf')) {
+      setErroresCv((actuales) => ({
+        ...actuales,
+        [postulacion.id]: 'El archivo debe tener formato PDF.',
+      }))
+      return
+    }
+
+    if (archivo.size > 10 * 1024 * 1024) {
+      setErroresCv((actuales) => ({
+        ...actuales,
+        [postulacion.id]: 'El PDF no puede superar los 10 MB.',
+      }))
+      return
+    }
+
+    setEvaluandoCv((actuales) => ({
+      ...actuales,
+      [postulacion.id]: true,
+    }))
+    setErroresCv((actuales) => ({
+      ...actuales,
+      [postulacion.id]: '',
+    }))
+    setEvaluacionesCv((actuales) => ({
+      ...actuales,
+      [postulacion.id]: null,
+    }))
+
+    const formData = new FormData()
+    formData.append('archivo', archivo)
+
+    try {
+      const query = new URLSearchParams({ vacante_id: String(vacanteId) })
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/candidatos/${postulacion.candidato_id}/cv?${query}`,
+        {
+          method: 'POST',
+          body: formData,
+        },
+      )
+      const resultado = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          resultado.detail || 'No se pudo evaluar el CV. Intenta nuevamente.',
+        )
+      }
+
+      setEvaluacionesCv((actuales) => ({
+        ...actuales,
+        [postulacion.id]: resultado,
+      }))
+      setPostulacionesActivas((actuales) =>
+        actuales.map((actual) =>
+          actual.id === postulacion.id
+            ? {
+                ...actual,
+                score_compatibilidad: resultado.score,
+                justificacion_agente: resultado.justificacion,
+              }
+            : actual,
+        ),
+      )
+      setCvSeleccionados((actuales) => ({
+        ...actuales,
+        [postulacion.id]: null,
+      }))
+    } catch (error) {
+      setErroresCv((actuales) => ({
+        ...actuales,
+        [postulacion.id]:
+          error instanceof Error
+            ? error.message
+            : 'No se pudo conectar con el servicio de evaluación.',
+      }))
+    } finally {
+      setEvaluandoCv((actuales) => ({
+        ...actuales,
+        [postulacion.id]: false,
+      }))
     }
   }
 
@@ -502,43 +617,131 @@ function Vacantes({ refreshTrigger }) {
                         {postulacionesActivas.map((postulacion) => (
                           <li
                             key={postulacion.id}
-                            className="flex justify-between rounded bg-gray-50 px-3 py-2 text-sm"
+                            className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm"
                           >
-                            <span className="font-medium text-gray-800">
-                              <span className="block">
-                                {postulacion.candidato?.nombre || 'Candidato'}
-                              </span>
-                              <span className="mt-1 block text-sm text-gray-600 italic">
-                                {postulacion.justificacion_agente ||
-                                  'Aún no evaluada por el agente.'}
-                              </span>
-                            </span>
-                            <span className="text-gray-600">
-                              {postulacion.estado}
-                            </span>
-                            <span
-                              className={
-                                postulacion.score_compatibilidad > 80
-                                  ? 'font-semibold text-green-600'
-                                  : postulacion.score_compatibilidad > 50
-                                    ? 'font-semibold text-orange-500'
-                                    : 'font-semibold text-red-600'
-                              }
-                            >
-                              Score:{' '}
-                              {postulacion.score_compatibilidad ?? 'Sin evaluar'}
-                              {postulacion.score_compatibilidad !== null &&
-                                postulacion.score_compatibilidad !== undefined &&
-                                '%'}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => evaluarPostulacion(postulacion.id)}
-                              className="flex items-center gap-1 rounded bg-violet-600 px-2 py-1 text-xs text-white transition hover:scale-105 hover:bg-violet-700"
-                            >
-                              <Bot size={14} aria-hidden="true" />
-                              Evaluar con Agente
-                            </button>
+                            <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-slate-800">
+                                  {postulacion.candidato?.nombre || 'Candidato'}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  Estado: {postulacion.estado}
+                                </p>
+                                <p className="mt-2 text-sm italic text-slate-600">
+                                  {postulacion.justificacion_agente ||
+                                    'Aún no evaluada.'}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                <span
+                                  className={`rounded-lg px-2.5 py-1.5 text-sm font-bold ${
+                                    postulacion.score_compatibilidad >= 80
+                                      ? 'bg-emerald-50 text-emerald-700'
+                                      : postulacion.score_compatibilidad >= 50
+                                        ? 'bg-amber-50 text-amber-700'
+                                        : postulacion.score_compatibilidad !==
+                                            null &&
+                                          postulacion.score_compatibilidad !==
+                                            undefined
+                                          ? 'bg-rose-50 text-rose-700'
+                                          : 'bg-slate-100 text-slate-500'
+                                  }`}
+                                >
+                                  {postulacion.score_compatibilidad ??
+                                    'Sin score'}
+                                  {postulacion.score_compatibilidad !== null &&
+                                    postulacion.score_compatibilidad !==
+                                      undefined &&
+                                    '%'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    evaluarPostulacion(postulacion.id)
+                                  }
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-700"
+                                >
+                                  <Bot size={14} aria-hidden="true" />
+                                  Evaluar habilidades
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 border-t border-slate-200 pt-4">
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Evaluar CV con Gemini
+                              </p>
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 transition hover:border-indigo-300 hover:bg-indigo-50/50">
+                                  <Upload
+                                    size={16}
+                                    className="shrink-0 text-indigo-600"
+                                    aria-hidden="true"
+                                  />
+                                  <span className="truncate">
+                                    {cvSeleccionados[postulacion.id]?.name ||
+                                      'Seleccionar CV en PDF'}
+                                  </span>
+                                  <input
+                                    type="file"
+                                    accept=".pdf,application/pdf"
+                                    className="sr-only"
+                                    aria-label={`Seleccionar CV de ${postulacion.candidato?.nombre || 'candidato'}`}
+                                    onChange={(event) =>
+                                      seleccionarCv(
+                                        postulacion.id,
+                                        event.target.files?.[0] || null,
+                                      )
+                                    }
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    subirCvYEvaluar(postulacion, vacante.id)
+                                  }
+                                  disabled={evaluandoCv[postulacion.id]}
+                                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-70"
+                                >
+                                  {evaluandoCv[postulacion.id] ? (
+                                    <>
+                                      <LoaderCircle
+                                        size={16}
+                                        className="animate-spin"
+                                        aria-hidden="true"
+                                      />
+                                      La IA está evaluando el perfil...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Bot size={16} aria-hidden="true" />
+                                      Subir y evaluar CV
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                              {erroresCv[postulacion.id] && (
+                                <p
+                                  className="mt-2 text-xs font-medium text-rose-700"
+                                  role="alert"
+                                >
+                                  {erroresCv[postulacion.id]}
+                                </p>
+                              )}
+                              {evaluacionesCv[postulacion.id] && (
+                                <div
+                                  className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3"
+                                  role="status"
+                                >
+                                  <p className="text-sm font-semibold text-emerald-800">
+                                    Afinidad: {evaluacionesCv[postulacion.id].score}%
+                                  </p>
+                                  <p className="mt-1 text-sm text-emerald-900">
+                                    {evaluacionesCv[postulacion.id].justificacion}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
                           </li>
                         ))}
                       </ul>

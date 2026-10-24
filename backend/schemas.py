@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PostulacionBase(BaseModel):
@@ -45,6 +45,77 @@ class CandidatoResponse(CandidatoCreate):
     id: int
     postulaciones: list[PostulacionResponse] | None = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class WhatsAppProfile(BaseModel):
+    """Perfil de contacto incluido en el evento estilo Meta WhatsApp."""
+
+    name: str
+
+
+class WhatsAppContact(BaseModel):
+    """Contacto de WhatsApp y correo recopilado por el flujo de registro."""
+
+    wa_id: str
+    profile: WhatsAppProfile
+
+
+class WhatsAppText(BaseModel):
+    """Cuerpo de un mensaje de texto de WhatsApp."""
+
+    body: str
+
+
+class WhatsAppMessage(BaseModel):
+    """Mensaje entrante con la forma usada por la API de Meta."""
+
+    sender_id: str = Field(alias="from")
+    text: WhatsAppText
+
+
+class WhatsAppValue(BaseModel):
+    """Datos de un cambio de mensaje y contacto para el webhook."""
+
+    candidate_email: str
+    contacts: list[WhatsAppContact]
+    messages: list[WhatsAppMessage]
+
+
+class WhatsAppChange(BaseModel):
+    value: WhatsAppValue
+
+
+class WhatsAppEntry(BaseModel):
+    changes: list[WhatsAppChange]
+
+
+class WhatsAppWebhookPayload(BaseModel):
+    """Envelope reducido de webhook de WhatsApp Business (Meta)."""
+
+    object: str
+    entry: list[WhatsAppEntry]
+
+
+class EmailSender(BaseModel):
+    """Remitente enviado por el proveedor de correo."""
+
+    name: str
+    email: str
+
+
+class EmailMessage(BaseModel):
+    """Contenido del mensaje de aplicación recibido por correo."""
+
+    subject: str
+    text: str
+
+
+class EmailWebhookPayload(BaseModel):
+    """Evento reducido de entrada de un proveedor de correo electrónico."""
+
+    event: str
+    sender: EmailSender = Field(alias="from")
+    message: EmailMessage
 
 
 class VacanteCreate(BaseModel):
