@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { FileText, Upload } from 'lucide-react'
 import api from '../api'
 
 function CrearCandidato({ onCreated }) {
@@ -12,6 +13,7 @@ function CrearCandidato({ onCreated }) {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [archivoCv, setArchivoCv] = useState(null)
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -33,16 +35,28 @@ function CrearCandidato({ onCreated }) {
       return
     }
 
+    if (archivoCv && !archivoCv.name.toLowerCase().endsWith('.pdf')) {
+      setError('El archivo del CV debe estar en formato PDF.')
+      return
+    }
+
+    if (archivoCv && archivoCv.size > 10 * 1024 * 1024) {
+      setError('El CV no puede superar los 10 MB.')
+      return
+    }
+
     setSubmitting(true)
 
     try {
-      await api.post('/candidatos/', {
-        nombre: form.nombre.trim(),
-        email: form.email.trim(),
-        telefono: form.telefono.trim(),
-        canal_origen: form.canal_origen.trim(),
-        habilidades: form.habilidades.trim() || null,
-      })
+      const formData = new FormData()
+      formData.append('nombre', form.nombre.trim())
+      formData.append('email', form.email.trim())
+      formData.append('telefono', form.telefono.trim())
+      formData.append('canal_origen', form.canal_origen.trim())
+      formData.append('habilidades', form.habilidades.trim())
+      if (archivoCv) formData.append('archivo', archivoCv)
+
+      await api.post('/api/v1/candidatos/con-cv', formData)
       setForm({
         nombre: '',
         email: '',
@@ -50,18 +64,26 @@ function CrearCandidato({ onCreated }) {
         canal_origen: '',
         habilidades: '',
       })
-      setMessage('Candidato creado correctamente.')
+      setArchivoCv(null)
+      setMessage(
+        archivoCv
+          ? 'Candidato creado y CV adjuntado correctamente.'
+          : 'Candidato creado correctamente.',
+      )
       onCreated()
-    } catch {
-      setError('No se pudo crear el candidato.')
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.detail ||
+          'No se pudo crear el candidato.',
+      )
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <section className="mb-8 rounded-xl border border-gray-100 bg-white p-6 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-      <h2 className="mb-4 text-2xl font-semibold text-gray-800">Crear candidato</h2>
+    <section className="bg-white">
+      <h2 className="mb-4 text-xl font-semibold text-slate-800">Crear candidato</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1">
           <label htmlFor="nombre" className="block font-medium text-gray-700">
@@ -73,7 +95,7 @@ function CrearCandidato({ onCreated }) {
             type="text"
             value={form.nombre}
             onChange={handleChange}
-            className="w-full rounded border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none"
           />
         </div>
         <div className="space-y-1">
@@ -86,7 +108,7 @@ function CrearCandidato({ onCreated }) {
             type="email"
             value={form.email}
             onChange={handleChange}
-            className="w-full rounded border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none"
           />
         </div>
         <div className="space-y-1">
@@ -99,7 +121,7 @@ function CrearCandidato({ onCreated }) {
             value={form.habilidades}
             onChange={handleChange}
             placeholder="Ej. Python, SQL, React"
-            className="min-h-24 w-full rounded border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none"
           />
         </div>
         <div className="space-y-1">
@@ -112,7 +134,7 @@ function CrearCandidato({ onCreated }) {
             type="tel"
             value={form.telefono}
             onChange={handleChange}
-            className="w-full rounded border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none"
           />
         </div>
         <div className="space-y-1">
@@ -128,13 +150,60 @@ function CrearCandidato({ onCreated }) {
             type="text"
             value={form.canal_origen}
             onChange={handleChange}
-            className="w-full rounded border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none"
           />
+        </div>
+        <div className="space-y-2">
+          <label
+            htmlFor="archivo-cv"
+            className="block font-medium text-gray-700"
+          >
+            CV en PDF <span className="font-normal text-gray-400">(opcional)</span>
+          </label>
+          <label
+            htmlFor="archivo-cv"
+            className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 transition hover:border-indigo-400 hover:bg-indigo-50/60"
+          >
+            <span className="rounded-lg bg-white p-2 text-indigo-600 shadow-sm">
+              {archivoCv ? (
+                <FileText size={20} aria-hidden="true" />
+              ) : (
+                <Upload size={20} aria-hidden="true" />
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-slate-800">
+                {archivoCv?.name || 'Selecciona o arrastra tu CV'}
+              </span>
+              <span className="mt-0.5 block text-xs text-slate-500">
+                PDF · máximo 10 MB
+              </span>
+            </span>
+            <span className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
+              Explorar
+            </span>
+            <input
+              key={archivoCv?.name || 'sin-archivo'}
+              id="archivo-cv"
+              name="archivo"
+              type="file"
+              accept=".pdf"
+              onChange={(event) => {
+                setArchivoCv(event.target.files?.[0] || null)
+                setError('')
+              }}
+              className="sr-only"
+              aria-describedby="archivo-cv-ayuda"
+            />
+          </label>
+          <p id="archivo-cv-ayuda" className="text-xs text-slate-500">
+            Se extraerá el texto del documento; el archivo original no se guarda.
+          </p>
         </div>
         <button
           type="submit"
           disabled={submitting}
-          className="rounded bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitting ? 'Guardando...' : 'Crear candidato'}
         </button>

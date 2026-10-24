@@ -8,11 +8,13 @@ import {
   Mail,
   Pencil,
   Search,
+  UserPlus,
   UsersRound,
   X,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../api'
+import CrearCandidato from './CrearCandidato'
 
 const puntajesDemo = [92, 85, 78, 96]
 const diasDemo = [0, 1, 2, 4]
@@ -120,6 +122,8 @@ function Candidatos({ refreshTrigger }) {
   const [candidatos, setCandidatos] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [mostrarModalNuevo, setMostrarModalNuevo] = useState(false)
+  const [refreshCandidatos, setRefreshCandidatos] = useState(0)
   const [busqueda, setBusqueda] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState('Todos')
   const [perfilAbierto, setPerfilAbierto] = useState(null)
@@ -198,7 +202,7 @@ function Candidatos({ refreshTrigger }) {
     return () => {
       isMounted = false
     }
-  }, [refreshTrigger])
+  }, [refreshTrigger, refreshCandidatos])
 
   const candidatosFiltrados = useMemo(() => {
     const termino = busqueda.trim().toLowerCase()
@@ -312,12 +316,22 @@ function Candidatos({ refreshTrigger }) {
             Da seguimiento a cada perfil a lo largo del proceso.
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
-          <UsersRound size={18} className="text-indigo-600" aria-hidden="true" />
-          <span className="text-sm font-semibold text-slate-800">
-            {candidatosActivos}
-          </span>
-          <span className="text-sm text-slate-500">en proceso</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
+            <UsersRound size={18} className="text-indigo-600" aria-hidden="true" />
+            <span className="text-sm font-semibold text-slate-800">
+              {candidatosActivos}
+            </span>
+            <span className="text-sm text-slate-500">en proceso</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMostrarModalNuevo(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+          >
+            <UserPlus size={16} aria-hidden="true" />
+            Nuevo Candidato
+          </button>
         </div>
       </header>
 
@@ -492,6 +506,43 @@ function Candidatos({ refreshTrigger }) {
               Contactar candidato
             </a>
           </section>
+        </div>
+      )}
+      {mostrarModalNuevo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+          onClick={() => setMostrarModalNuevo(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-nuevo-candidato-titulo"
+            className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-7"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between gap-4">
+              <h3
+                id="modal-nuevo-candidato-titulo"
+                className="text-lg font-semibold text-slate-900"
+              >
+                Nuevo Candidato
+              </h3>
+              <button
+                type="button"
+                onClick={() => setMostrarModalNuevo(false)}
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                aria-label="Cerrar formulario de candidato"
+              >
+                <X size={20} aria-hidden="true" />
+              </button>
+            </div>
+            <CrearCandidato
+              onCreated={() => {
+                setMostrarModalNuevo(false)
+                setRefreshCandidatos((actual) => actual + 1)
+              }}
+            />
+          </div>
         </div>
       )}
     </section>

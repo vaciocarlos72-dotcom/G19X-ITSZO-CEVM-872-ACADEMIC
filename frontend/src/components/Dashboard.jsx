@@ -11,28 +11,37 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Activity, Mail, MessageCircle, UsersRound } from 'lucide-react'
-import api from '../api'
+import {
+  Activity,
+  BriefcaseBusiness,
+  Mail,
+  MessageCircle,
+  UsersRound,
+} from 'lucide-react'
+import { API_BASE_URL } from '../api'
 
-const CANALES = [
-  { name: 'Webhook', color: '#4f46e5' },
-  { name: 'WhatsApp', color: '#16a34a' },
-  { name: 'Email', color: '#0891b2' },
-  { name: 'Otros', color: '#94a3b8' },
-]
+const COLORES_CANALES = {
+  Webhook: '#4f46e5',
+  WhatsApp: '#16a34a',
+  Email: '#0891b2',
+  'Sin especificar': '#94a3b8',
+}
+const API_URL = API_BASE_URL.replace(/\/+$/, '')
 
-const normalizarCanal = (canal = '') => {
-  const origen = canal.trim().toLowerCase()
-  if (origen.includes('whatsapp')) return 'WhatsApp'
-  if (origen.includes('email') || origen.includes('correo')) return 'Email'
+const normalizarCanal = (canal) => {
+  const origen = typeof canal === 'string' ? canal.trim() : ''
+  if (!origen) return 'Sin especificar'
+  const origenNormalizado = origen.toLowerCase()
+  if (origenNormalizado.includes('whatsapp')) return 'WhatsApp'
+  if (origenNormalizado.includes('email') || origenNormalizado.includes('correo')) return 'Email'
   if (
-    origen.includes('webhook') ||
-    origen.includes('api') ||
-    origen.includes('omnicanal')
+    origenNormalizado.includes('webhook') ||
+    origenNormalizado.includes('api') ||
+    origenNormalizado.includes('omnicanal')
   ) {
     return 'Webhook'
   }
-  return 'Otros'
+  return origen
 }
 
 const formatearFecha = (fecha) => {
@@ -48,18 +57,45 @@ const nombreCorto = (nombre = '') => {
 
 function Dashboard() {
   const [candidatos, setCandidatos] = useState([])
+  const [vacantes, setVacantes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let isMounted = true
 
-    const cargarCandidatos = async () => {
+    const controller = new AbortController()
+
+    const cargarDatos = async () => {
       try {
-        const response = await api.get('/candidatos/')
-        if (isMounted) setCandidatos(response.data)
-      } catch {
+        const [candidatosResponse, vacantesResponse] = await Promise.all([
+          fetch(`${API_URL}/api/v1/candidatos`, {
+            signal: controller.signal,
+          }),
+          fetch(`${API_URL}/api/v1/vacantes`, {
+            signal: controller.signal,
+          }),
+        ])
+
+        if (!candidatosResponse.ok || !vacantesResponse.ok) {
+          throw new Error('La API no pudo devolver los datos del Dashboard.')
+        }
+
+        const [candidatosData, vacantesData] = await Promise.all([
+          candidatosResponse.json(),
+          vacantesResponse.json(),
+        ])
+
+        if (!Array.isArray(candidatosData) || !Array.isArray(vacantesData)) {
+          throw new Error('La API devolvió un formato inesperado.')
+        }
+
         if (isMounted) {
+          setCandidatos(candidatosData)
+          setVacantes(vacantesData)
+        }
+      } catch {
+        if (isMounted && !controller.signal.aborted) {
           setError('No se pudieron cargar las métricas del Dashboard.')
         }
       } finally {
@@ -67,25 +103,27 @@ function Dashboard() {
       }
     }
 
-    cargarCandidatos()
+    cargarDatos()
     return () => {
       isMounted = false
+      controller.abort()
     }
   }, [])
 
   const resumen = useMemo(() => {
-    const distribucion = CANALES.map((canal) => ({
-      ...canal,
-      value: 0,
-    }))
-    const conteoPorCanal = new Map(
-      distribucion.map((canal) => [canal.name, canal]),
-    )
+    const conteoPorCanal = new Map()
 
     candidatos.forEach((candidato) => {
       const canal = normalizarCanal(candidato.canal_origen)
-      conteoPorCanal.get(canal).value += 1
+      conteoPorCanal.set(canal, (conteoPorCanal.get(canal) || 0) + 1)
     })
+    const distribucion = [...conteoPorCanal.entries()]
+      .map(([name, value]) => ({
+        name,
+        value,
+        color: COLORES_CANALES[name] || '#64748b',
+      }))
+      .sort((a, b) => b.value - a.value)
 
     const puntuaciones = candidatos.flatMap((candidato) =>
       (candidato.postulaciones || [])
@@ -111,19 +149,21 @@ function Dashboard() {
               puntuaciones.length,
           )
         : null
-    const canalPrincipal =
-      distribucion
-        .filter((canal) => canal.name !== 'Otros')
-        .sort((a, b) => b.value - a.value)[0]
+    const canalPrincipal = distribucion[0]
+    const vacantesActivas = vacantes.filter((vacante) => {
+      const estado = (vacante.estado || '').toLowerCase()
+      return estado.includes('abiert') || estado.includes('activ')
+    }).length
 
     return {
-      distribucion: distribucion.filter((canal) => canal.value > 0),
+      distribucion,
       scoresRecientes,
       promedio,
       canalPrincipal:
-        canalPrincipal?.value > 0 ? canalPrincipal.name : 'Sin datos',
+        canalPrincipal?.name || 'Sin datos',
+      vacantesActivas,
     }
-  }, [candidatos])
+  }, [candidatos, vacantes])
 
   const metricas = [
     {
@@ -132,6 +172,13 @@ function Dashboard() {
       detalle: 'Perfiles registrados en la plataforma',
       icono: UsersRound,
       iconoClase: 'bg-indigo-50 text-indigo-600',
+    },
+    {
+      etiqueta: 'Vacantes activas',
+      valor: resumen.vacantesActivas,
+      detalle: `De ${vacantes.length} vacantes registradas`,
+      icono: BriefcaseBusiness,
+      iconoClase: 'bg-sky-50 text-sky-600',
     },
     {
       etiqueta: 'Promedio general de score IA',
@@ -192,7 +239,7 @@ function Dashboard() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metricas.map(({ etiqueta, valor, detalle, icono: Icon, iconoClase }) => (
           <article
             key={etiqueta}
@@ -221,7 +268,7 @@ function Dashboard() {
               Candidatos por canal de recepción
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Distribución de Webhook, WhatsApp y Email
+              Distribución según el canal de origen registrado
             </p>
           </div>
           {resumen.distribucion.length === 0 ? (
@@ -260,10 +307,7 @@ function Dashboard() {
             </div>
           )}
           <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {CANALES.map((canal) => {
-              const cantidad =
-                resumen.distribucion.find((item) => item.name === canal.name)
-                  ?.value || 0
+            {resumen.distribucion.map((canal) => {
               return (
                 <div key={canal.name} className="flex items-center gap-2">
                   <span
@@ -274,7 +318,7 @@ function Dashboard() {
                     {canal.name}
                   </span>
                   <span className="ml-auto text-xs font-semibold text-slate-800">
-                    {cantidad}
+                    {canal.value}
                   </span>
                 </div>
               )

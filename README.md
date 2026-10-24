@@ -1,46 +1,45 @@
 # PluriOne
 
 PluriOne es un MVP académico para apoyar procesos de reclutamiento. Permite
-administrar vacantes, recibir CV en PDF, obtener una evaluación semántica de
-afinidad entre CV y vacante mediante **Google Gemini**, y consultar indicadores
-de reclutamiento en un Dashboard.
+administrar vacantes, registrar candidatos desde distintos canales, evaluar CV
+en PDF con IA y consultar indicadores en un Dashboard analítico.
 
-Si Gemini no está configurado o el servicio no está disponible, el backend
-mantiene un evaluador simulado como mecanismo de respaldo. Las evaluaciones
-simuladas no sustituyen una decisión de selección.
+El análisis semántico utiliza **Google Gemini 3.8 Flash**
+(`gemini-3.8-flash`) a través del SDK oficial `google-genai`. Si falta la clave
+de Gemini o la API no responde correctamente, el backend usa un evaluador
+simulado de respaldo. El score es orientativo; la decisión final corresponde a
+una persona reclutadora.
 
 ## Alcance del MVP
 
 - Crear, consultar, editar y eliminar vacantes.
-- Recibir y procesar un CV PDF para una vacante, extraer su texto y evaluarlo
-  semánticamente con Gemini.
-- Consultar un Dashboard con métricas y visualizaciones de reclutamiento.
-- Registrar candidatos y postulaciones como datos de soporte del flujo.
+- Registrar candidatos y postulaciones.
+- Ingerir candidatos desde webhooks simulados de WhatsApp Business y correo
+  electrónico.
+- Recibir CV en PDF, extraer su texto con PyPDF2 y evaluar su afinidad con una
+  vacante mediante Gemini.
+- Consultar métricas, canales de recepción y scores de afinidad en el Dashboard.
 
 Este MVP **no incluye nómina, administración de empleados, contratación formal,
-firma de contratos, ofertas laborales vinculantes ni gestión de pagos**. La
-afinidad calculada por IA es orientativa; la decisión final corresponde a una
-persona reclutadora.
+firma de contratos, ofertas laborales vinculantes ni gestión de pagos**.
 
 ## Tecnologías
 
 - **Frontend:** React, Vite, Tailwind CSS, Recharts y Lucide React.
-- **Backend:** FastAPI y SQLAlchemy.
+- **Backend:** FastAPI, SQLAlchemy y `google-genai`.
 - **Base de datos:** PostgreSQL.
-- **Evaluación de CV:** Google Gemini (`google-generativeai`) con fallback
-  simulado.
+- **PDF:** PyPDF2.
 - **Ejecución local:** Docker Compose.
 
-## Requisitos previos
+## Requisitos
 
 - Docker Desktop con Docker Compose.
-- Una clave de API de Google Gemini para habilitar la evaluación real. Sin ella,
-  se usará el evaluador simulado.
+- Una API key de Google Gemini para activar la evaluación real. Si no se
+  configura, se utilizará el evaluador simulado.
 
-## Configuración de variables de entorno
+## Configurar variables de entorno
 
-Desde la raíz del repositorio, crea el archivo `.env` para la contraseña de
-PostgreSQL:
+Desde la raíz del repositorio, crea `.env` para la contraseña de PostgreSQL.
 
 **PowerShell**
 
@@ -54,7 +53,7 @@ PostgreSQL:
 printf 'POSTGRES_PASSWORD=elige-una-clave-segura\n' > .env
 ```
 
-Crea el archivo de configuración local del backend a partir de la plantilla:
+Crea el archivo de entorno para el backend a partir de la plantilla:
 
 **PowerShell**
 
@@ -68,79 +67,56 @@ Copy-Item backend/.env.example backend/.env
 cp backend/.env.example backend/.env
 ```
 
-Edita `backend/.env` y reemplaza los valores de ejemplo:
+Edita `backend/.env` y configura valores propios:
 
 ```dotenv
-DATABASE_URL=postgresql+psycopg://postgres:elige-una-clave-segura@localhost:5432/plurione_db
+DATABASE_URL=postgresql+psycopg://postgres:tu-clave@localhost:5432/plurione_db
 WEBHOOK_API_KEY=define-una-clave-aleatoria-larga
-GEMINI_API_KEY=pega-aqui-tu-clave-de-google-gemini
+GEMINI_API_KEY=tu-clave-de-google-gemini
 ```
 
-Compose configura `DATABASE_URL` para que el backend contacte al servicio de
-PostgreSQL dentro de la red de Docker. No publiques los archivos `.env`, ni
-incluyas claves reales en el repositorio.
+Compose define la URL interna de PostgreSQL para el backend. No subas los
+archivos `.env` ni incluyas claves reales en el repositorio.
 
 ## Ejecutar con Docker Compose
 
-Desde la raíz del proyecto:
+Desde la raíz:
 
 ```bash
 docker compose up --build
 ```
 
-Para detener los servicios:
+Detener servicios:
 
 ```bash
 docker compose down
 ```
 
-Para detenerlos y eliminar también el volumen de datos de PostgreSQL:
+Detenerlos y borrar también los datos persistidos de PostgreSQL:
 
 ```bash
 docker compose down --volumes
 ```
 
-La última opción elimina los datos persistidos de la base de datos.
-
 | Servicio | Dirección local |
 | --- | --- |
 | Frontend | http://localhost:5173 |
 | API FastAPI | http://localhost:8000 |
-| Documentación interactiva de la API | http://localhost:8000/docs |
+| Documentación interactiva | http://localhost:8000/docs |
 | PostgreSQL | localhost:5432 |
-
-## Evaluación de CV
-
-El endpoint `POST /agente/evaluar-cv/{vacante_id}` recibe un archivo PDF bajo el
-campo multipart `archivo`. El tamaño máximo permitido es 10 MB. La API extrae el
-texto del archivo y devuelve un score de 0 a 100 y una justificación breve; el
-archivo no se conserva.
-
-Para cargar un CV ligado a un candidato y guardar la evaluación en su
-postulación, utiliza `POST /api/v1/candidatos/{candidato_id}/cv` con el parámetro
-de consulta requerido `vacante_id` y el archivo multipart `archivo`. El
-candidato debe tener una postulación asociada a esa vacante. Un archivo
-corrupto, vacío o que no sea PDF se rechaza con HTTP 400.
-
-La evaluación del endpoint existente `POST /agente/evaluar/{postulacion_id}`
-también utiliza Gemini para una postulación registrada. La variable
-`GEMINI_API_KEY` debe estar definida en `backend/.env` para habilitar el servicio
-remoto.
 
 ## Integraciones omnicanal
 
-Los webhooks de canales requieren el header `X-API-Key` con el valor configurado
-en `WEBHOOK_API_KEY`. Ambos endpoints crean un candidato nuevo y normalizan el
-canal, teléfono y texto de habilidades al formato de la base de datos. Si se
-recibe nuevamente un correo ya registrado, la restricción de unicidad de la base
-de datos rechaza el registro.
+Los dos endpoints de canales requieren el header `X-API-Key` con el valor
+configurado en `WEBHOOK_API_KEY`. Si falta o no coincide, la solicitud se
+rechaza.
 
 ### WhatsApp Business
 
-`POST /api/v1/canales/whatsapp` acepta un envelope reducido con estructura tipo
-Meta. El correo se incluye como `candidate_email` porque la API de WhatsApp no
-lo proporciona de forma nativa; debe haber sido recopilado por el flujo
-conversacional:
+`POST /api/v1/canales/whatsapp` acepta un envelope JSON reducido inspirado en
+Meta WhatsApp Business. El email debe haberse recopilado por el flujo
+conversacional y se envía como `candidate_email`, porque WhatsApp no lo entrega
+por sí solo.
 
 ```json
 {
@@ -163,9 +139,13 @@ conversacional:
 }
 ```
 
+El backend normaliza nombre, email, teléfono, canal (`WhatsApp`) y texto del
+mensaje al modelo de candidatos.
+
 ### Correo electrónico
 
-`POST /api/v1/canales/email` recibe un evento simplificado de proveedor de correo:
+`POST /api/v1/canales/email` acepta un evento simplificado de proveedor de
+correo:
 
 ```json
 {
@@ -181,23 +161,53 @@ conversacional:
 }
 ```
 
-Los eventos se validan como JSON y necesitan los campos requeridos por el
-registro de candidatos. Para producción, el webhook de Meta también debe validar
-su firma de origen y procesar su esquema completo; esta integración académica
-simula el formato de entrada y protege el acceso mediante API Key.
+El backend registra nombre, email, canal (`Email`) y el texto del mensaje como
+habilidades. Los webhooks son adaptadores académicos y no sustituyen la
+validación de firma e idempotencia requerida para una integración real con
+proveedores externos.
+
+## Carga y evaluación de CV
+
+El formulario de creación de candidatos envía sus campos y, opcionalmente, el
+CV en PDF como `multipart/form-data` a `POST /api/v1/candidatos/con-cv`. El
+backend crea el candidato y guarda el nombre de archivo junto con el texto
+extraído en una tabla relacionada; el PDF binario original no se conserva. El
+formulario limita los PDFs a 10 MB.
+
+El endpoint de evaluación persistente es
+`POST /api/v1/candidatos/{candidato_id}/cv`. Requiere el parámetro de consulta
+`vacante_id` y un archivo PDF en el campo multipart `archivo`. El candidato debe
+tener una postulación para esa vacante.
+
+El flujo técnico es:
+
+1. FastAPI recibe el archivo mediante `UploadFile` y `File`.
+2. El backend lee el PDF en memoria (máximo 10 MB), sin guardarlo en disco.
+3. `PyPDF2.PdfReader` recibe `io.BytesIO` y extrae el texto de todas las páginas.
+4. El texto extraído y la descripción de la vacante se envían a Gemini 3.8 Flash
+   mediante `google-genai`.
+5. El agente valida el JSON con un score entre 0 y 100 y una justificación
+   breve. Si Gemini no está configurado o falla, usa el evaluador simulado.
+6. El score y la justificación se guardan en la postulación asociada.
+
+Los PDFs vacíos, corruptos o sin texto extraíble se rechazan. No se incluye OCR
+para CV escaneados como imagen.
+
+El endpoint `POST /agente/evaluar-cv/{vacante_id}` ofrece además una evaluación
+sin asociar el resultado a una postulación. El endpoint
+`POST /agente/evaluar/{postulacion_id}` reevalúa una postulación ya registrada.
 
 ## Desarrollo manual
 
-Para ejecutar los servicios sin Docker, se necesita PostgreSQL disponible y
-configurar `DATABASE_URL` en `backend/.env`. Instala los paquetes e inicia el
-backend:
+Se requiere PostgreSQL en ejecución y `DATABASE_URL` configurada en
+`backend/.env`.
 
 ```bash
 cd backend
 python -m venv .venv
 ```
 
-Activa el entorno virtual correspondiente a tu sistema y continúa:
+Activa el entorno virtual, instala dependencias e inicia la API:
 
 ```bash
 pip install -r requirements.txt
@@ -212,13 +222,8 @@ npm install
 npm run dev
 ```
 
-## Validaciones
+## Documentación adicional
 
-```bash
-cd frontend
-npm run lint
-npm run build
-```
-
-El frontend de desarrollo se ejecuta con Vite. Consulta [frontend/README.md](frontend/README.md)
-para detalles de su estructura y comandos.
+- [Arquitectura del backend](docs/backend_arquitectura.md)
+- [PRD del MVP](PRD_MVP.md)
+- [Guía del frontend](frontend/README.md)

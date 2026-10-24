@@ -38,8 +38,8 @@ function CrearVacante({ onCreated }) {
   }
 
   return (
-    <section className="mb-8 rounded-xl border border-gray-100 bg-white p-6 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-      <h2 className="mb-4 text-2xl font-semibold text-gray-800">Crear vacante</h2>
+    <section className="rounded-xl bg-white">
+      <h2 className="mb-4 text-xl font-semibold text-gray-800">Crear vacante</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1">
           <label htmlFor="titulo" className="block font-medium text-gray-700">

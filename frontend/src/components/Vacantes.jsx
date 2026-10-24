@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api, { API_BASE_URL } from '../api'
+import CrearVacante from './CrearVacante'
 
 const vacantesDemo = [
   {
@@ -68,6 +69,8 @@ function Vacantes({ refreshTrigger }) {
   const [vacantes, setVacantes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [mostrarModalNueva, setMostrarModalNueva] = useState(false)
+  const [refreshVacantes, setRefreshVacantes] = useState(0)
   const [usandoDatosDemo, setUsandoDatosDemo] = useState(false)
   const [editandoId, setEditandoId] = useState(null)
   const [datosEdicion, setDatosEdicion] = useState({})
@@ -79,6 +82,7 @@ function Vacantes({ refreshTrigger }) {
   const [evaluacionesCv, setEvaluacionesCv] = useState({})
   const [erroresCv, setErroresCv] = useState({})
   const [evaluandoCv, setEvaluandoCv] = useState({})
+  const [isLoading, setIsLoading] = useState({})
 
   const getEstadoBadge = (estado) => {
     const estadoNormalizado = (estado || '').toLowerCase()
@@ -129,7 +133,7 @@ function Vacantes({ refreshTrigger }) {
     return () => {
       isMounted = false
     }
-  }, [refreshTrigger])
+  }, [refreshTrigger, refreshVacantes])
 
   useEffect(() => {
     let isMounted = true
@@ -254,6 +258,11 @@ function Vacantes({ refreshTrigger }) {
   }
 
   const evaluarPostulacion = async (postulacionId) => {
+    setIsLoading((actuales) => ({
+      ...actuales,
+      [postulacionId]: true,
+    }))
+
     try {
       const response = await api.post(`/agente/evaluar/${postulacionId}`)
       setPostulacionesActivas((currentPostulaciones) =>
@@ -266,6 +275,11 @@ function Vacantes({ refreshTrigger }) {
       toast.success('Postulación evaluada correctamente.')
     } catch {
       toast.error('No se pudo evaluar la postulación.')
+    } finally {
+      setIsLoading((actuales) => ({
+        ...actuales,
+        [postulacionId]: false,
+      }))
     }
   }
 
@@ -400,9 +414,19 @@ function Vacantes({ refreshTrigger }) {
             Gestiona tus posiciones y consulta el avance de cada proceso.
           </p>
         </div>
-        <span className="w-fit rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
-          {vacantes.length} {vacantes.length === 1 ? 'posición' : 'posiciones'}
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="w-fit rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
+            {vacantes.length} {vacantes.length === 1 ? 'posición' : 'posiciones'}
+          </span>
+          <button
+            type="button"
+            onClick={() => setMostrarModalNueva(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+          >
+            <Briefcase size={16} aria-hidden="true" />
+            Nueva Vacante
+          </button>
+        </div>
       </div>
       {usandoDatosDemo && (
         <p className="rounded-lg border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-800">
@@ -410,7 +434,7 @@ function Vacantes({ refreshTrigger }) {
           vacantes reales.
         </p>
       )}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
         {vacantes.map((vacante) => (
           <article
             key={vacante.id}
@@ -656,13 +680,25 @@ function Vacantes({ refreshTrigger }) {
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    evaluarPostulacion(postulacion.id)
-                                  }
-                                  className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-700"
+                                  onClick={() => evaluarPostulacion(postulacion.id)}
+                                  disabled={isLoading[postulacion.id]}
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:cursor-wait disabled:opacity-70"
                                 >
-                                  <Bot size={14} aria-hidden="true" />
-                                  Evaluar habilidades
+                                  {isLoading[postulacion.id] ? (
+                                    <>
+                                      <LoaderCircle
+                                        size={14}
+                                        className="animate-spin"
+                                        aria-hidden="true"
+                                      />
+                                      Procesando...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Bot size={14} aria-hidden="true" />
+                                      Evaluar con agente
+                                    </>
+                                  )}
                                 </button>
                               </div>
                             </div>
@@ -753,6 +789,43 @@ function Vacantes({ refreshTrigger }) {
           </article>
         ))}
       </div>
+      {mostrarModalNueva && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+          onClick={() => setMostrarModalNueva(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-nueva-vacante-titulo"
+            className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-7"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between gap-4">
+              <h3
+                id="modal-nueva-vacante-titulo"
+                className="text-lg font-semibold text-slate-900"
+              >
+                Nueva Vacante
+              </h3>
+              <button
+                type="button"
+                onClick={() => setMostrarModalNueva(false)}
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                aria-label="Cerrar formulario de vacante"
+              >
+                <X size={20} aria-hidden="true" />
+              </button>
+            </div>
+            <CrearVacante
+              onCreated={() => {
+                setMostrarModalNueva(false)
+                setRefreshVacantes((actual) => actual + 1)
+              }}
+            />
+          </div>
+        </div>
+      )}
     </section>
   )
 }

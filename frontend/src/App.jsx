@@ -1,58 +1,27 @@
-import { useState } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import CandidatosList from './components/CandidatosList'
-import CrearCandidato from './components/CrearCandidato'
-import CrearVacante from './components/CrearVacante'
+import Candidatos from './components/Candidatos'
 import Dashboard from './components/Dashboard'
 import Navbar from './components/Navbar'
-import VacantesList from './components/VacantesList'
+import Vacantes from './components/Vacantes'
 
 function App() {
   return (
     <BrowserRouter>
       <Toaster position="top-right" />
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100">
+      <div className="min-h-screen bg-slate-50">
         <Navbar />
         <main className="ml-64 min-h-screen flex-1">
-          <div className="mx-auto max-w-5xl p-4">
+          <div className="mx-auto max-w-7xl p-4 sm:p-6">
             <Routes>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/vacantes" element={<VacantesRoute />} />
-              <Route path="/candidatos" element={<CandidatosRoute />} />
+              <Route path="/vacantes" element={<Vacantes />} />
+              <Route path="/candidatos" element={<Candidatos />} />
             </Routes>
           </div>
         </main>
       </div>
     </BrowserRouter>
-  )
-}
-
-function VacantesRoute() {
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
-
-  return (
-    <>
-      <h1>PluriOne - Portal de Reclutamiento</h1>
-      <CrearVacante
-        onCreated={() => setRefreshTrigger((value) => value + 1)}
-      />
-      <VacantesList refreshTrigger={refreshTrigger} />
-    </>
-  )
-}
-
-function CandidatosRoute() {
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
-
-  return (
-    <>
-      <h1>PluriOne - Portal de Reclutamiento</h1>
-      <CrearCandidato
-        onCreated={() => setRefreshTrigger((value) => value + 1)}
-      />
-      <CandidatosList refreshTrigger={refreshTrigger} />
-    </>
   )
 }
 

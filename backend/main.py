@@ -8,6 +8,7 @@ from fastapi import (
     Depends,
     FastAPI,
     File,
+    Form,
     Header,
     HTTPException,
     Query,
@@ -103,6 +104,88 @@ def create_candidato(
             detail="No se pudo crear el candidato.",
         ) from exc
     return candidato
+
+
+@app.post(
+    "/api/v1/candidatos/con-cv",
+    status_code=status.HTTP_201_CREATED,
+    tags=["Candidatos"],
+)
+async def create_candidate_with_cv(
+    nombre: str = Form(...),
+    email: str = Form(...),
+    telefono: str | None = Form(default=None),
+    canal_origen: str = Form(...),
+    habilidades: str | None = Form(default=None),
+    archivo: UploadFile | None = File(default=None),
+    db: Session = Depends(get_db),
+):
+    """Crea un candidato y, si se envía, adjunta el texto extraído del CV."""
+    texto_cv = None
+    nombre_archivo = None
+
+    if archivo is not None:
+        try:
+            contenido = await archivo.read(10 * 1024 * 1024 + 1)
+            if len(contenido) > 10 * 1024 * 1024:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail="El PDF no puede superar los 10 MB.",
+                )
+            if (
+                archivo.content_type != "application/pdf"
+                or not contenido.startswith(b"%PDF-")
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="El archivo seleccionado no es un PDF válido.",
+                )
+            texto_cv = extraer_texto_pdf(contenido)
+            nombre_archivo = os.path.basename(archivo.filename or "cv.pdf")[:255]
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se pudo leer el PDF: {exc}",
+            ) from exc
+        finally:
+            await archivo.close()
+
+    candidato_data = CandidatoCreate(
+        nombre=nombre.strip(),
+        email=email.strip(),
+        telefono=telefono.strip() if telefono and telefono.strip() else None,
+        canal_origen=canal_origen.strip(),
+        habilidades=habilidades.strip() if habilidades and habilidades.strip() else None,
+    )
+    candidato = models.Candidato(**candidato_data.model_dump(exclude_unset=True))
+
+    try:
+        db.add(candidato)
+        db.flush()
+        if texto_cv is not None and nombre_archivo is not None:
+            db.add(
+                models.CandidatoCV(
+                    candidato_id=candidato.id,
+                    nombre_archivo=nombre_archivo,
+                    texto_extraido=texto_cv,
+                )
+            )
+        db.commit()
+        db.refresh(candidato)
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo crear el candidato o adjuntar su CV.",
+        ) from exc
+
+    return {
+        "mensaje": "Candidato creado correctamente.",
+        "id": candidato.id,
+        "nombre": candidato.nombre,
+        "cv_adjunto": texto_cv is not None,
+        "nombre_archivo": nombre_archivo,
+    }
 
 
 @app.post("/api/v1/webhooks/candidatos", tags=["Integraciones Omnicanal"])
@@ -219,6 +302,7 @@ def receive_email_candidate(
     return _registrar_candidato_omnicanal(candidato_data, db)
 
 
+@app.get("/api/v1/candidatos", response_model=list[CandidatoResponse])
 @app.get("/candidatos/", response_model=list[CandidatoResponse])
 def list_candidatos(db: Session = Depends(get_db)):
     """Devuelve todos los candidatos registrados."""
@@ -249,6 +333,7 @@ def create_vacante(
     return vacante
 
 
+@app.get("/api/v1/vacantes", response_model=list[VacanteResponse])
 @app.get("/vacantes/", response_model=list[VacanteResponse])
 def list_vacantes(db: Session = Depends(get_db)):
     """Devuelve todas las vacantes registradas."""

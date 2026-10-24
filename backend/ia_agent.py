@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import time
 
 from google import genai
 from google.genai.errors import APIError
@@ -107,14 +108,45 @@ CV:
 
     try:
         cliente = genai.Client(api_key=api_key)
-        respuesta = cliente.models.generate_content(
-            model="gemini-3.8-flash",
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-                "temperature": 0.2,
-            },
-        )
+        pausas_reintento = (0, 3, 5, 10)
+        for intento, pausa in enumerate(pausas_reintento):
+            if pausa:
+                time.sleep(pausa)
+
+            try:
+                respuesta = cliente.models.generate_content(
+                    model="gemini-3.8-flash",
+                    contents=prompt,
+                    config={
+                        "response_mime_type": "application/json",
+                        "temperature": 0.2,
+                    },
+                )
+                break
+            except (APIError, httpx.HTTPError) as exc:
+                codigo_http = (
+                    exc.code
+                    if isinstance(exc, APIError)
+                    else exc.response.status_code
+                    if isinstance(exc, httpx.HTTPStatusError)
+                    else None
+                )
+                reintentable = (
+                    codigo_http in {429, 500, 502, 503, 504}
+                    if codigo_http is not None
+                    else isinstance(exc, httpx.TransportError)
+                )
+                if not reintentable or intento == len(pausas_reintento) - 1:
+                    raise
+
+                logger.warning(
+                    "Gemini falló con %s; reintento %s/%s en %s segundos.",
+                    codigo_http or type(exc).__name__,
+                    intento + 1,
+                    len(pausas_reintento) - 1,
+                    pausas_reintento[intento + 1],
+                )
+
         resultado = json.loads(respuesta.text)
         score = resultado.get("score")
         justificacion = resultado.get("justificacion")

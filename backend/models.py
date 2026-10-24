@@ -25,6 +25,27 @@ class Candidato(Base):
     postulaciones: Mapped[list["Postulacion"]] = relationship(
         back_populates="candidato", cascade="all, delete-orphan"
     )
+    curriculums: Mapped[list["CandidatoCV"]] = relationship(
+        back_populates="candidato", cascade="all, delete-orphan"
+    )
+
+
+class CandidatoCV(Base):
+    """Almacena el texto extraido de un CV sin conservar el archivo original."""
+
+    __tablename__ = "candidato_cvs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    candidato_id: Mapped[int] = mapped_column(
+        ForeignKey("candidatos.id"), nullable=False
+    )
+    nombre_archivo: Mapped[str] = mapped_column(String(255), nullable=False)
+    texto_extraido: Mapped[str] = mapped_column(Text, nullable=False)
+    fecha_carga: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+
+    candidato: Mapped["Candidato"] = relationship(back_populates="curriculums")
 
 
 class Vacante(Base):
