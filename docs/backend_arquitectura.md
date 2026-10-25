@@ -178,7 +178,7 @@ las especificaciones externas. Para producción deben añadirse, entre otros,
 validación de firma del proveedor, idempotencia, manejo de reintentos y
 observabilidad.
 
-## 6. Flujo técnico de carga y evaluación de CV
+## 6. Agente evaluador y flujo técnico de carga de CV
 
 El formulario de creación utiliza `POST /api/v1/candidatos/con-cv` para crear un
 candidato y adjuntar un CV opcional. El backend recibe los campos como
@@ -205,16 +205,20 @@ Flujo:
 5. Un archivo vacío, corrupto, que no sea PDF o que no tenga texto extraíble se
    rechaza con HTTP `400`. Los archivos sobre el límite se rechazan con HTTP
    `413`.
-6. El texto del CV y la descripción de la vacante se entregan a
-   `ia_agent.evaluar_candidato`.
-7. El agente inicializa el SDK `google-genai` con `GEMINI_API_KEY` y solicita
-   JSON con un score entero de `0` a `100` y una justificación breve. El modelo
-   configurado actualmente es **Gemini 3.8 Flash** (`gemini-3.8-flash`).
+6. El texto completo extraído del CV y la descripción de la vacante se entregan
+   a `ia_agent.evaluar_candidato`; no se limita el análisis a un conteo de
+   palabras o a la cadena de habilidades del candidato.
+7. El agente inicializa el SDK oficial `google-genai` con `GEMINI_API_KEY` y
+   solicita una evaluación semántica a **Gemini 1.5 Flash**
+   (`gemini-1.5-flash`). El modelo devuelve JSON con un score entero de `0` a
+   `100` y una justificación breve.
 8. Se validan los campos de la respuesta. Si falta la API key, Gemini falla o la
-   respuesta no es válida, se ejecuta `evaluar_candidato_simulado`.
+   respuesta no es válida, se ejecuta `evaluar_candidato_simulado`, un fallback
+   determinista basado en coincidencias de palabras clave. La respuesta incluye
+   `fuente: "gemini"` o `fuente: "simulado"` para identificar el evaluador.
 9. El endpoint persiste `score_compatibilidad` y `justificacion_agente` en la
-   postulación y devuelve el resultado. Si la persistencia falla, revierte la
-   transacción y responde con error HTTP.
+   postulación y devuelve el resultado con la fuente de evaluación. Si la
+   persistencia falla, revierte la transacción y responde con error HTTP.
 
 El score es una señal orientativa para el equipo de reclutamiento y no una
 decisión automatizada de empleo. La extracción de texto no incluye OCR para

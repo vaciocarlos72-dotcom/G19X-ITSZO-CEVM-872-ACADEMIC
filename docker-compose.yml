@@ -9,6 +9,8 @@ services:
       POSTGRES_DB: plurione_db
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
   backend:
     build: ./backend
@@ -29,5 +31,10 @@ services:
     restart: always
     depends_on:
       - backend
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
     ports:
       - "5173:5173"
+
+volumes:
+  postgres_data:

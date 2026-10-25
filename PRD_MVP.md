@@ -40,7 +40,25 @@ responsable de interpretar el resultado y tomar decisiones.
 - Eliminar una vacante y sus postulaciones asociadas según las relaciones de
   persistencia definidas por la aplicación.
 
-### 4.2 Recepción y lectura de CV
+### 4.2 Recepción omnicanal de candidatos
+
+El MVP permite crear candidatos desde más de un canal mediante endpoints de
+recepción que normalizan los datos al modelo de candidatos de la plataforma:
+
+- **Webhook estándar:** `POST /api/v1/webhooks/candidatos` recibe un payload
+  JSON con los campos del candidato.
+- **WhatsApp Business simulado:** `POST /api/v1/canales/whatsapp` acepta un
+  evento simplificado con la estructura de un webhook de WhatsApp Business y
+  extrae nombre, email, teléfono y texto del mensaje.
+- **Correo electrónico simulado:** `POST /api/v1/canales/email` acepta un evento
+  simplificado de correo y extrae nombre, email y contenido del mensaje.
+
+Los tres endpoints registran al candidato en la base de datos y requieren el
+header `X-API-Key` configurado mediante `WEBHOOK_API_KEY`. Las rutas de WhatsApp
+y correo son adaptadores para demostración académica; no constituyen
+integraciones de producción ni validan firmas oficiales de proveedores.
+
+### 4.3 Recepción y lectura de CV
 
 - Recibir un CV en formato PDF asociado a una vacante.
 - Cargar un CV para un candidato y una vacante mediante
@@ -50,7 +68,7 @@ responsable de interpretar el resultado y tomar decisiones.
 - Rechazar archivos que no sean PDFs válidos o que no contengan texto legible.
 - No conservar el archivo PDF después de procesarlo.
 
-### 4.3 Evaluación semántica con Google Gemini
+### 4.4 Evaluación semántica con Google Gemini
 
 - Comparar el texto del CV con la descripción de la vacante.
 - Solicitar una respuesta JSON con:
@@ -62,7 +80,7 @@ responsable de interpretar el resultado y tomar decisiones.
 - Tratar el score como referencia y no como una decisión automática de
   contratación.
 
-### 4.4 Dashboard analítico
+### 4.5 Dashboard analítico
 
 - Mostrar un resumen visual de reclutamiento, como totales de candidatos y
   vacantes y volumen de postulaciones.

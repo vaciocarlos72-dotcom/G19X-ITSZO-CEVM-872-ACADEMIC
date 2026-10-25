@@ -53,6 +53,7 @@ def evaluar_candidato_simulado(
             "El agente simulado detectó coincidencias en "
             f"las tecnologías {tecnologias}."
         ),
+        "fuente": "simulado",
     }
 
 
@@ -81,7 +82,7 @@ def evaluar_candidato(
     texto_cv: str | None,
     descripcion_vacante: str | None,
 ) -> dict[str, int | str]:
-    """Evalua con Gemini y usa el resultado simulado si la API no está disponible."""
+    """Evalua con Gemini o el respaldo simulado e informa la fuente."""
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         logger.warning("GEMINI_API_KEY no está configurada; se usará el respaldo.")
@@ -115,7 +116,7 @@ CV:
 
             try:
                 respuesta = cliente.models.generate_content(
-                    model="gemini-3.8-flash",
+                    model="gemini-1.5-flash",
                     contents=prompt,
                     config={
                         "response_mime_type": "application/json",
@@ -163,6 +164,7 @@ CV:
         return {
             "score": score,
             "justificacion": justificacion.strip()[:MAX_JUSTIFICATION_LENGTH],
+            "fuente": "gemini",
         }
     except (
         APIError,

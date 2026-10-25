@@ -27,6 +27,7 @@ from schemas import (
     CandidatoCreate,
     CandidatoResponse,
     EmailWebhookPayload,
+    PostulacionEvaluacionResponse,
     PostulacionCreate,
     PostulacionResponse,
     VacanteCreate,
@@ -39,7 +40,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -404,7 +405,7 @@ def list_vacante_postulaciones(
 
 @app.post(
     "/agente/evaluar/{postulacion_id}",
-    response_model=PostulacionResponse,
+    response_model=PostulacionEvaluacionResponse,
 )
 def evaluar_postulacion(postulacion_id: int, db: Session = Depends(get_db)):
     """Evalua la compatibilidad entre un candidato y una vacante."""
@@ -418,10 +419,17 @@ def evaluar_postulacion(postulacion_id: int, db: Session = Depends(get_db)):
     candidato = postulacion.candidato
     vacante = postulacion.vacante
 
-    resultado_agente = evaluar_candidato(
-        candidato.habilidades,
-        vacante.descripcion,
+    cv_reciente = max(
+        candidato.curriculums,
+        key=lambda curriculum: curriculum.fecha_carga,
+        default=None,
     )
+    texto_cv = (
+        cv_reciente.texto_extraido
+        if cv_reciente is not None
+        else candidato.habilidades
+    )
+    resultado_agente = evaluar_candidato(texto_cv, vacante.descripcion)
     postulacion.score_compatibilidad = resultado_agente["score"]
     postulacion.justificacion_agente = resultado_agente["justificacion"]
 
@@ -434,7 +442,10 @@ def evaluar_postulacion(postulacion_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No se pudo guardar la evaluacion de la postulacion.",
         ) from exc
-    return postulacion
+    return {
+        **PostulacionResponse.model_validate(postulacion).model_dump(),
+        "fuente": resultado_agente["fuente"],
+    }
 
 
 @app.post("/agente/evaluar-cv/{vacante_id}")

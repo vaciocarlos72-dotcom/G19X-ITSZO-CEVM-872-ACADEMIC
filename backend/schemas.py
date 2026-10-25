@@ -1,6 +1,7 @@
 """Esquemas Pydantic para validar entradas y respuestas de la API."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,6 +27,12 @@ class PostulacionResponse(PostulacionCreate):
     score_compatibilidad: int | None = None
     justificacion_agente: str | None = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class PostulacionEvaluacionResponse(PostulacionResponse):
+    """Postulacion evaluada con la fuente usada por el agente."""
+
+    fuente: Literal["gemini", "simulado"]
 
 
 class CandidatoCreate(BaseModel):

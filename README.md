@@ -4,11 +4,11 @@ PluriOne es un MVP académico para apoyar procesos de reclutamiento. Permite
 administrar vacantes, registrar candidatos desde distintos canales, evaluar CV
 en PDF con IA y consultar indicadores en un Dashboard analítico.
 
-El análisis semántico utiliza **Google Gemini 3.8 Flash**
-(`gemini-3.8-flash`) a través del SDK oficial `google-genai`. Si falta la clave
+El análisis semántico de los CV utiliza **Google Gemini 1.5 Flash**
+(`gemini-1.5-flash`) a través del SDK oficial `google-genai`. Si falta la clave
 de Gemini o la API no responde correctamente, el backend usa un evaluador
-simulado de respaldo. El score es orientativo; la decisión final corresponde a
-una persona reclutadora.
+simulado de respaldo basado en coincidencias de palabras clave. El score es
+orientativo; la decisión final corresponde a una persona reclutadora.
 
 ## Alcance del MVP
 
@@ -40,17 +40,23 @@ firma de contratos, ofertas laborales vinculantes ni gestión de pagos**.
 ## Configurar variables de entorno
 
 Desde la raíz del repositorio, crea `.env` para la contraseña de PostgreSQL.
+El volumen `postgres_data` de Docker Compose conserva los datos de PostgreSQL
+al apagar los contenedores. Para indicar una URL distinta del API al frontend,
+añade `VITE_API_URL` al `.env` raíz; por defecto se usa
+`http://localhost:8000`.
 
 **PowerShell**
 
 ```powershell
 'POSTGRES_PASSWORD=elige-una-clave-segura' | Set-Content -Encoding ascii .env
+'VITE_API_URL=http://localhost:8000' | Add-Content -Encoding ascii .env
 ```
 
 **macOS/Linux**
 
 ```bash
 printf 'POSTGRES_PASSWORD=elige-una-clave-segura\n' > .env
+printf 'VITE_API_URL=http://localhost:8000\n' >> .env
 ```
 
 Crea el archivo de entorno para el backend a partir de la plantilla:
@@ -92,7 +98,7 @@ Detener servicios:
 docker compose down
 ```
 
-Detenerlos y borrar también los datos persistidos de PostgreSQL:
+Detenerlos y borrar también el volumen y los datos persistidos de PostgreSQL:
 
 ```bash
 docker compose down --volumes
@@ -104,6 +110,21 @@ docker compose down --volumes
 | API FastAPI | http://localhost:8000 |
 | Documentación interactiva | http://localhost:8000/docs |
 | PostgreSQL | localhost:5432 |
+
+## Cargar datos iniciales para la evaluación
+
+Después de iniciar los servicios, los evaluadores pueden cargar datos de
+demostración en la base de datos con:
+
+```bash
+docker exec plurione_backend python seed.py
+```
+
+El script utiliza la configuración SQLAlchemy del backend e inserta dos
+vacantes, dos candidatos y sus postulaciones iniciales únicamente cuando las
+tablas de vacantes y candidatos están vacías. Si ya hay registros, no modifica
+la información existente; por eso puede ejecutarse de nuevo sin duplicar los
+datos de prueba.
 
 ## Integraciones omnicanal
 
@@ -184,10 +205,12 @@ El flujo técnico es:
 1. FastAPI recibe el archivo mediante `UploadFile` y `File`.
 2. El backend lee el PDF en memoria (máximo 10 MB), sin guardarlo en disco.
 3. `PyPDF2.PdfReader` recibe `io.BytesIO` y extrae el texto de todas las páginas.
-4. El texto extraído y la descripción de la vacante se envían a Gemini 3.8 Flash
-   mediante `google-genai`.
+4. El texto extraído y la descripción de la vacante se envían a Gemini 1.5 Flash
+   (`gemini-1.5-flash`) mediante el SDK oficial `google-genai`, para una
+   evaluación semántica del perfil frente a la vacante.
 5. El agente valida el JSON con un score entre 0 y 100 y una justificación
-   breve. Si Gemini no está configurado o falla, usa el evaluador simulado.
+   breve. Si Gemini no está configurado o falla, usa el evaluador simulado de
+   respaldo, que compara palabras clave.
 6. El score y la justificación se guardan en la postulación asociada.
 
 Los PDFs vacíos, corruptos o sin texto extraíble se rechazan. No se incluye OCR
