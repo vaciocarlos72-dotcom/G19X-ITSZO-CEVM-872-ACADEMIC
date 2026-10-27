@@ -23,17 +23,16 @@ class Base(DeclarativeBase):
     """Clase base para los modelos persistidos en PostgreSQL."""
 
 
-def ensure_candidate_profile_column() -> None:
-    """Añade el campo de perfil a bases existentes sin afectar instalaciones nuevas."""
-    if "perfil_estructurado" in {
-        column["name"] for column in inspect(engine).get_columns("candidatos")
-    }:
-        return
-
+def ensure_cv_profile_column() -> None:
+    """Añade el perfil JSON a la tabla de CV en bases existentes."""
+    inspector = inspect(engine)
     with engine.begin() as connection:
-        connection.execute(
-            text(
-                "ALTER TABLE candidatos "
-                "ADD COLUMN perfil_estructurado JSON"
-            )
-        )
+        if inspector.has_table("candidato_cvs"):
+            columnas_cvs = {
+                column["name"]
+                for column in inspector.get_columns("candidato_cvs")
+            }
+            if "perfil_json" not in columnas_cvs:
+                connection.execute(
+                    text("ALTER TABLE candidato_cvs ADD COLUMN perfil_json TEXT")
+                )

@@ -1,5 +1,6 @@
 """Aplicacion inicial del backend de PluriOne."""
 
+import json
 import os
 import secrets
 from collections.abc import Generator
@@ -20,8 +21,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
-from database import SessionLocal, engine, ensure_candidate_profile_column
-from ia_agent import evaluar_candidato, extraer_perfil_candidato, extraer_texto_pdf
+from database import SessionLocal, engine, ensure_cv_profile_column
+from ia_agent import evaluar_candidato, extraer_perfil, extraer_texto_pdf
 import models
 from schemas import (
     CandidatoCreate,
@@ -45,7 +46,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 models.Base.metadata.create_all(bind=engine)
-ensure_candidate_profile_column()
+ensure_cv_profile_column()
 MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024
 
 
@@ -158,13 +159,13 @@ async def create_candidate_with_cv(
     """Crea un candidato y, si se envía, adjunta el texto extraído del CV."""
     texto_cv = None
     nombre_archivo = None
-    perfil_estructurado = None
+    perfil_json = None
 
     if archivo is not None:
         try:
             texto_cv = await _leer_texto_pdf_validado(archivo)
             nombre_archivo = os.path.basename(archivo.filename or "cv.pdf")[:255]
-            perfil_estructurado = extraer_perfil_candidato(texto_cv)
+            perfil_json = json.dumps(extraer_perfil(texto_cv), ensure_ascii=False)
         except HTTPException as exc:
             if exc.status_code == status.HTTP_400_BAD_REQUEST:
                 raise HTTPException(
@@ -181,7 +182,6 @@ async def create_candidate_with_cv(
         habilidades=habilidades.strip() if habilidades and habilidades.strip() else None,
     )
     candidato = models.Candidato(**candidato_data.model_dump(exclude_unset=True))
-    candidato.perfil_estructurado = perfil_estructurado
 
     try:
         db.add(candidato)
@@ -192,6 +192,7 @@ async def create_candidate_with_cv(
                     candidato_id=candidato.id,
                     nombre_archivo=nombre_archivo,
                     texto_extraido=texto_cv,
+                    perfil_json=perfil_json,
                 )
             )
         db.commit()
@@ -447,17 +448,17 @@ def evaluar_postulacion(postulacion_id: int, db: Session = Depends(get_db)):
         key=lambda curriculum: curriculum.fecha_carga,
         default=None,
     )
-    if candidato.perfil_estructurado is None:
+    perfil_json = cv_reciente.perfil_json if cv_reciente is not None else None
+    if perfil_json is None:
         texto_cv = (
             cv_reciente.texto_extraido
             if cv_reciente is not None
             else candidato.habilidades
         )
-        candidato.perfil_estructurado = extraer_perfil_candidato(texto_cv)
-    perfil_estructurado = candidato.perfil_estructurado
-    resultado_agente = evaluar_candidato(
-        perfil_estructurado, vacante.descripcion
-    )
+        perfil_json = json.dumps(extraer_perfil(texto_cv), ensure_ascii=False)
+        if cv_reciente is not None:
+            cv_reciente.perfil_json = perfil_json
+    resultado_agente = evaluar_candidato(perfil_json, vacante.descripcion)
     postulacion.score_compatibilidad = resultado_agente["score"]
     postulacion.justificacion_agente = resultado_agente["justificacion"]
 
@@ -491,9 +492,9 @@ async def evaluar_cv_pdf(
         )
 
     texto_cv = await _leer_texto_pdf_validado(archivo)
-    perfil_estructurado = extraer_perfil_candidato(texto_cv)
+    perfil_json = json.dumps(extraer_perfil(texto_cv), ensure_ascii=False)
 
-    return evaluar_candidato(perfil_estructurado, vacante.descripcion)
+    return evaluar_candidato(perfil_json, vacante.descripcion)
 
 
 @app.post("/api/v1/candidatos/{candidato_id}/cv")
@@ -534,9 +535,16 @@ async def cargar_cv_candidato(
         )
 
     texto_cv = await _leer_texto_pdf_validado(archivo)
-    perfil_estructurado = extraer_perfil_candidato(texto_cv)
-    candidato.perfil_estructurado = perfil_estructurado
-    resultado = evaluar_candidato(perfil_estructurado, vacante.descripcion)
+    perfil_json = json.dumps(extraer_perfil(texto_cv), ensure_ascii=False)
+    nombre_archivo = os.path.basename(archivo.filename or "cv.pdf")[:255]
+    curriculum = models.CandidatoCV(
+        candidato_id=candidato.id,
+        nombre_archivo=nombre_archivo,
+        texto_extraido=texto_cv,
+        perfil_json=perfil_json,
+    )
+    db.add(curriculum)
+    resultado = evaluar_candidato(perfil_json, vacante.descripcion)
     postulacion.score_compatibilidad = resultado["score"]
     postulacion.justificacion_agente = resultado["justificacion"]
 

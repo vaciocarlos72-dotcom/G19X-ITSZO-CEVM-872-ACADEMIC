@@ -21,6 +21,16 @@ const etiquetaFuenteEvaluacion = (fuente) => {
   return null
 }
 
+const clasesFuenteEvaluacion = (fuente) => {
+  if (fuente === 'gemini') {
+    return 'rounded bg-violet-50 px-2 py-1 text-xs text-violet-700'
+  }
+  if (fuente === 'simulado') {
+    return 'rounded bg-slate-100 px-2 py-1 text-xs text-slate-600'
+  }
+  return ''
+}
+
 function Vacantes({ refreshTrigger }) {
   const [vacantes, setVacantes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -554,58 +564,58 @@ function Vacantes({ refreshTrigger }) {
                       </p>
                     ) : (
                       <ul className="mt-2 space-y-2">
-                        {postulacionesParaRenderizar.map((aplicacion) => (
+                        {postulacionesParaRenderizar.map((postulacion) => (
                           <li
-                            key={aplicacion?.id}
+                            key={postulacion?.id}
                             className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm"
                           >
                             <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
                               <div className="min-w-0">
                                 <p className="font-semibold text-slate-800">
-                                  {aplicacion?.candidato?.nombre || 'Candidato'}
+                                  {postulacion?.candidato?.nombre || 'Candidato'}
                                 </p>
                                 <p className="mt-1 text-xs text-slate-500">
-                                  Estado: {aplicacion?.estado || 'Sin estado'}
+                                  Estado: {postulacion?.estado || 'Sin estado'}
                                 </p>
                                 <p className="mt-2 text-sm italic text-slate-600">
-                                  {aplicacion?.justificacion_agente ||
+                                  {postulacion?.justificacion_agente ||
                                     'Aún no evaluada.'}
                                 </p>
-                                {etiquetaFuenteEvaluacion(aplicacion?.fuente) && (
-                                  <p className="mt-1 text-xs font-medium text-slate-500">
-                                    Fuente: {etiquetaFuenteEvaluacion(aplicacion?.fuente)}
-                                  </p>
+                                {etiquetaFuenteEvaluacion(postulacion?.fuente) && (
+                                  <span className={clasesFuenteEvaluacion(postulacion?.fuente)}>
+                                    {etiquetaFuenteEvaluacion(postulacion?.fuente)}
+                                  </span>
                                 )}
                               </div>
                               <div className="flex shrink-0 flex-wrap items-center gap-2">
                                 <span
                                   className={`rounded-lg px-2.5 py-1.5 text-sm font-bold ${
-                                    aplicacion?.score_compatibilidad >= 80
+                                    postulacion?.score_compatibilidad >= 80
                                       ? 'bg-emerald-50 text-emerald-700'
-                                      : aplicacion?.score_compatibilidad >= 50
+                                      : postulacion?.score_compatibilidad >= 50
                                         ? 'bg-amber-50 text-amber-700'
-                                        : aplicacion?.score_compatibilidad !==
+                                        : postulacion?.score_compatibilidad !==
                                             null &&
-                                          aplicacion?.score_compatibilidad !==
+                                          postulacion?.score_compatibilidad !==
                                             undefined
                                           ? 'bg-rose-50 text-rose-700'
                                           : 'bg-slate-100 text-slate-500'
                                   }`}
                                 >
-                                  {aplicacion?.score_compatibilidad ??
+                                  {postulacion?.score_compatibilidad ??
                                     'Sin evaluar'}
-                                  {aplicacion?.score_compatibilidad !== null &&
-                                    aplicacion?.score_compatibilidad !==
+                                  {postulacion?.score_compatibilidad !== null &&
+                                    postulacion?.score_compatibilidad !==
                                       undefined &&
                                     '%'}
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => evaluarPostulacion(aplicacion?.id)}
-                                  disabled={isLoading?.[aplicacion?.id]}
+                                  onClick={() => evaluarPostulacion(postulacion?.id)}
+                                  disabled={isLoading?.[postulacion?.id]}
                                   className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:cursor-wait disabled:opacity-70"
                                 >
-                                  {isLoading?.[aplicacion?.id] ? (
+                                  {isLoading?.[postulacion?.id] ? (
                                     <>
                                       <LoaderCircle
                                         size={14}
@@ -626,7 +636,7 @@ function Vacantes({ refreshTrigger }) {
 
                             <div className="mt-4 border-t border-slate-200 pt-4">
                               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                Evaluación de CV con IA
+                                Evaluar CV con el agente
                               </p>
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                 <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 transition hover:border-indigo-300 hover:bg-indigo-50/50">
@@ -636,17 +646,17 @@ function Vacantes({ refreshTrigger }) {
                                     aria-hidden="true"
                                   />
                                   <span className="truncate">
-                                    {cvSeleccionados?.[aplicacion?.id]?.name ||
+                                    {cvSeleccionados?.[postulacion?.id]?.name ||
                                       'Seleccionar CV en PDF'}
                                   </span>
                                   <input
                                     type="file"
                                     accept=".pdf,application/pdf"
                                     className="sr-only"
-                                    aria-label={`Seleccionar CV de ${aplicacion?.candidato?.nombre || 'candidato'}`}
+                                    aria-label={`Seleccionar CV de ${postulacion?.candidato?.nombre || 'candidato'}`}
                                     onChange={(event) =>
                                       seleccionarCv(
-                                        aplicacion?.id,
+                                        postulacion?.id,
                                         event.target.files?.[0] || null,
                                       )
                                     }
@@ -655,12 +665,12 @@ function Vacantes({ refreshTrigger }) {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    subirCvYEvaluar(aplicacion, vacante?.id)
+                                    subirCvYEvaluar(postulacion, vacante?.id)
                                   }
-                                  disabled={evaluandoCv?.[aplicacion?.id]}
+                                  disabled={evaluandoCv?.[postulacion?.id]}
                                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-70"
                                 >
-                                  {evaluandoCv?.[aplicacion?.id] ? (
+                                  {evaluandoCv?.[postulacion?.id] ? (
                                     <>
                                       <LoaderCircle
                                         size={16}
@@ -677,30 +687,40 @@ function Vacantes({ refreshTrigger }) {
                                   )}
                                 </button>
                               </div>
-                              {erroresCv?.[aplicacion?.id] && (
+                              {erroresCv?.[postulacion?.id] && (
                                 <p
                                   className="mt-2 text-xs font-medium text-rose-700"
                                   role="alert"
                                 >
-                                  {erroresCv?.[aplicacion?.id]}
+                                  {erroresCv?.[postulacion?.id]}
                                 </p>
                               )}
-                              {evaluacionesCv?.[aplicacion?.id] && (
+                              {evaluacionesCv?.[postulacion?.id] && (
                                 <div
                                   className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3"
                                   role="status"
                                 >
                                   <p className="text-sm font-semibold text-emerald-800">
-                                    Afinidad: {evaluacionesCv?.[aplicacion?.id]?.score ?? 'Sin evaluar'}
-                                    {evaluacionesCv?.[aplicacion?.id]?.score != null && '%'}
+                                    Afinidad: {evaluacionesCv?.[postulacion?.id]?.score ?? 'Sin evaluar'}
+                                    {evaluacionesCv?.[postulacion?.id]?.score != null && '%'}
                                   </p>
                                   <p className="mt-1 text-sm text-emerald-900">
-                                    {evaluacionesCv?.[aplicacion?.id]?.justificacion || 'Sin justificación disponible.'}
+                                    {evaluacionesCv?.[postulacion?.id]?.justificacion || 'Sin justificación disponible.'}
                                   </p>
                                   <p className="mt-2 text-xs font-medium text-emerald-700">
-                                    Fuente: {etiquetaFuenteEvaluacion(
-                                      evaluacionesCv?.[aplicacion?.id]?.fuente,
-                                    ) || 'No disponible'}
+                                    {etiquetaFuenteEvaluacion(
+                                      evaluacionesCv?.[postulacion?.id]?.fuente,
+                                    ) && (
+                                      <span
+                                        className={clasesFuenteEvaluacion(
+                                          evaluacionesCv?.[postulacion?.id]?.fuente,
+                                        )}
+                                      >
+                                        {etiquetaFuenteEvaluacion(
+                                          evaluacionesCv?.[postulacion?.id]?.fuente,
+                                        )}
+                                      </span>
+                                    )}
                                   </p>
                                 </div>
                               )}

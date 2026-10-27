@@ -539,16 +539,16 @@ function FragmentRow({
           </span>
         </td>
         <td className="whitespace-nowrap px-5 py-4">
-          <span
-            className={`inline-flex min-w-14 items-center justify-center rounded-lg px-2.5 py-1.5 text-sm font-bold ${matchColor}`}
-            aria-label={
-              match === null
-                ? 'Candidato sin evaluar'
-                : `Afinidad ${match} por ciento`
-            }
-          >
-            {match === null ? 'Sin evaluar' : `${match}%`}
-          </span>
+          {match === null ? (
+            <span className="text-slate-400">Sin evaluar</span>
+          ) : (
+            <span
+              className={`inline-flex min-w-14 items-center justify-center rounded-lg px-2.5 py-1.5 text-sm font-bold ${matchColor}`}
+              aria-label={`Afinidad ${match} por ciento`}
+            >
+              {match}%
+            </span>
+          )}
         </td>
         <td className="whitespace-nowrap px-5 py-4">
           <div className="flex justify-end gap-1.5">

@@ -82,6 +82,8 @@ GEMINI_API_KEY=tu-clave-de-google-gemini
 GEMINI_MODEL=gemini-1.5-flash
 ```
 
+La URL de PostgreSQL debe usar el dialecto del driver psycopg v3 instalado:
+`postgresql+psycopg://...`. La plantilla del backend ya incluye este formato.
 Compose define la URL interna de PostgreSQL para el backend. No subas los
 archivos `.env` ni incluyas claves reales en el repositorio.
 
@@ -217,13 +219,19 @@ La evaluación de candidatos encadena dos agentes con tareas diferenciadas. El
 modelo se configura con `GEMINI_MODEL` (por defecto, `gemini-1.5-flash`) y el
 backend se conecta mediante el SDK `google-genai` y `GEMINI_API_KEY`.
 
+Durante el desarrollo se utilizó IA generativa como apoyo para diseñar los
+esquemas de los canales de recepción y redactar/refinar los prompts de los
+agentes. Las respuestas y cambios se revisan y validan con el código y las
+pruebas del proyecto.
+
 1. **Agente extractor:** recibe el texto completo obtenido del CV con PyPDF2 y
-   solicita a Gemini un perfil estructurado en JSON con `habilidades`,
-   `años_experiencia` e `idiomas`. El backend valida los campos y guarda el
-   perfil en `Candidato.perfil_estructurado`; el texto extraído se conserva
-   además en el registro del CV.
-2. **Agente evaluador:** recibe ese perfil estructurado y la descripción de la
-   vacante. Gemini compara la información y devuelve un score de afinidad de
+   solicita a Gemini un perfil JSON estricto con `habilidades`,
+   `anios_experiencia`, `idiomas` y `resumen`. El backend valida la estructura
+   y la guarda en `CandidatoCV.perfil_json`; el texto extraído también se
+   conserva en el registro del CV.
+2. **Agente evaluador:** recibe ese `perfil_json` y la descripción de la
+   vacante, sin volver a incluir el texto completo del CV. Gemini compara la
+   información y devuelve un score de afinidad de
    `0` a `100` junto con una justificación breve. En evaluaciones asociadas a
    una postulación, el score y la justificación se guardan en ella.
 

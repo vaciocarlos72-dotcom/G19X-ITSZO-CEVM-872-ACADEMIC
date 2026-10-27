@@ -1,7 +1,7 @@
 """Esquemas Pydantic para validar entradas y respuestas de la API."""
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -50,7 +50,6 @@ class CandidatoResponse(CandidatoCreate):
     """Representacion de un candidato devuelta por la API."""
 
     id: int
-    perfil_estructurado: dict[str, Any] | None = None
     postulaciones: list[PostulacionResponse] | None = None
     model_config = ConfigDict(from_attributes=True)
 

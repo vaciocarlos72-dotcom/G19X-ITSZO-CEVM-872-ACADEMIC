@@ -1,5 +1,6 @@
 """Pruebas HTTP básicas para los endpoints principales de PluriOne."""
 
+import json
 import os
 
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
@@ -34,12 +35,14 @@ def client(monkeypatch):
             db.close()
 
     main.app.dependency_overrides[main.get_db] = override_get_db
+    main.app.state.test_session = test_session
     monkeypatch.setenv("WEBHOOK_API_KEY", "test-webhook-key")
 
     with TestClient(main.app) as test_client:
         yield test_client
 
     main.app.dependency_overrides.clear()
+    del main.app.state.test_session
     engine.dispose()
 
 
@@ -154,12 +157,13 @@ def test_extractor_devuelve_perfil_estructurado(monkeypatch):
     class FakeModels:
         def generate_content(self, **kwargs):
             assert kwargs["model"] == "gemini-1.5-flash"
+            assert kwargs["config"]["response_mime_type"] == "application/json"
             assert "CV completo de prueba" in kwargs["contents"]
 
             class Response:
                 text = (
-                    '{"habilidades":["Python"],"años_experiencia":5,'
-                    '"idiomas":["español"]}'
+                    '{"habilidades":["Python"],"anios_experiencia":5,'
+                    '"idiomas":["español"],"resumen":"Experiencia en Python."}'
                 )
 
             return Response()
@@ -174,23 +178,25 @@ def test_extractor_devuelve_perfil_estructurado(monkeypatch):
     monkeypatch.setenv("GEMINI_MODEL", "gemini-1.5-flash")
     monkeypatch.setattr(ia_agent.genai, "Client", FakeClient)
 
-    perfil = ia_agent.extraer_perfil_candidato("CV completo de prueba")
+    perfil = ia_agent.extraer_perfil("CV completo de prueba")
 
     assert perfil == {
         "habilidades": ["Python"],
-        "años_experiencia": 5,
+        "anios_experiencia": 5,
         "idiomas": ["español"],
+        "resumen": "Experiencia en Python.",
     }
 
 
-def test_evaluacion_encadena_y_persiste_perfil_estructurado(
+def test_evaluacion_encadena_perfil_json(
     client: TestClient, monkeypatch
 ):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     perfil_esperado = {
         "habilidades": ["Python"],
-        "años_experiencia": 5,
+        "anios_experiencia": 5,
         "idiomas": ["inglés"],
+        "resumen": "Experiencia profesional en Python.",
     }
     texto_recibido = []
     perfil_evaluado = []
@@ -207,7 +213,7 @@ def test_evaluacion_encadena_y_persiste_perfil_estructurado(
             "fuente": "simulado",
         }
 
-    monkeypatch.setattr(main, "extraer_perfil_candidato", extraer)
+    monkeypatch.setattr(main, "extraer_perfil", extraer)
     monkeypatch.setattr(main, "evaluar_candidato", evaluar)
 
     candidato_response = client.post(
@@ -235,25 +241,84 @@ def test_evaluacion_encadena_y_persiste_perfil_estructurado(
     assert evaluacion.status_code == 200
     assert texto_recibido == ["CV con experiencia en Python"]
     assert perfil_evaluado == [
-        (perfil_esperado, "Experiencia con Python y FastAPI")
+        (
+            json.dumps(perfil_esperado, ensure_ascii=False),
+            "Experiencia con Python y FastAPI",
+        )
     ]
-    candidato_actualizado = client.get("/candidatos/").json()[0]
-    assert candidato_actualizado["perfil_estructurado"] == perfil_esperado
 
 
-def test_actualiza_esquema_existente_para_perfil_estructurado(monkeypatch):
+def test_carga_cv_persiste_perfil_json(
+    client: TestClient, monkeypatch
+):
+    perfil_esperado = {
+        "habilidades": ["Python"],
+        "anios_experiencia": 4,
+        "idiomas": ["español"],
+        "resumen": "Experiencia en desarrollo Python.",
+    }
+    async def leer_texto_pdf(_archivo):
+        return "CV completo para pruebas"
+
+    monkeypatch.setattr(main, "_leer_texto_pdf_validado", leer_texto_pdf)
+    monkeypatch.setattr(main, "extraer_perfil", lambda texto: perfil_esperado)
+    monkeypatch.setattr(
+        main,
+        "evaluar_candidato",
+        lambda perfil_json, descripcion: {
+            "score": 100,
+            "justificacion": "Perfil compatible.",
+            "fuente": "simulado",
+        },
+    )
+
+    candidato_response = client.post(
+        "/candidatos/",
+        json={
+            "nombre": "Elena Prueba",
+            "email": "elena.cv@example.com",
+            "canal_origen": "Webhook",
+        },
+    )
+    assert candidato_response.status_code == 201
+    candidato_id = candidato_response.json()["id"]
+    vacante_id = crear_vacante(client)
+    postulacion_response = client.post(
+        "/postulaciones/",
+        json={"candidato_id": candidato_id, "vacante_id": vacante_id},
+    )
+    assert postulacion_response.status_code == 201
+
+    response = client.post(
+        f"/api/v1/candidatos/{candidato_id}/cv?vacante_id={vacante_id}",
+        files={"archivo": ("curriculum.pdf", b"%PDF-1.4 contenido", "application/pdf")},
+    )
+
+    assert response.status_code == 200
+    with client.app.state.test_session() as db:
+        curriculum = db.query(models.CandidatoCV).one()
+        assert curriculum.texto_extraido == "CV completo para pruebas"
+        assert curriculum.perfil_json == json.dumps(
+            perfil_esperado, ensure_ascii=False
+        )
+
+
+def test_actualiza_esquema_existente_para_perfil_json(monkeypatch):
     legacy_engine = create_engine("sqlite+pysqlite:///:memory:")
     with legacy_engine.begin() as connection:
         connection.execute(
-            text("CREATE TABLE candidatos (id INTEGER PRIMARY KEY)")
+            text(
+                "CREATE TABLE candidato_cvs (id INTEGER PRIMARY KEY, "
+                "candidato_id INTEGER, nombre_archivo TEXT, "
+                "texto_extraido TEXT)"
+            )
         )
     monkeypatch.setattr(database, "engine", legacy_engine)
 
-    database.ensure_candidate_profile_column()
-
-    columnas = {
+    database.ensure_cv_profile_column()
+    columnas_cvs = {
         column["name"]
-        for column in inspect(legacy_engine).get_columns("candidatos")
+        for column in inspect(legacy_engine).get_columns("candidato_cvs")
     }
-    assert "perfil_estructurado" in columnas
+    assert "perfil_json" in columnas_cvs
     legacy_engine.dispose()
