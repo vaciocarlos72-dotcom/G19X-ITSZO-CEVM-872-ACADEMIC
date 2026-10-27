@@ -1,9 +1,8 @@
 # Arquitectura del frontend
 
-## Estructura del Proyecto
+## Estructura del proyecto
 
-La aplicación React se encuentra dentro de `frontend` y su código principal está
-organizado en `frontend/src`:
+La aplicación React está organizada en `frontend/src`:
 
 ```text
 frontend/src/
@@ -11,94 +10,90 @@ frontend/src/
 |-- App.jsx
 |-- main.jsx
 `-- components/
-    `-- VacantesList.jsx
+    |-- Candidatos.jsx
+    |-- CrearCandidato.jsx
+    |-- CrearVacante.jsx
+    |-- Dashboard.jsx
+    |-- Navbar.jsx
+    `-- Vacantes.jsx
 ```
 
-- `main.jsx`: punto de entrada de React. Monta el componente `App` en el
-  elemento raíz del documento.
-- `App.jsx`: componente principal de la aplicación y configuración de las rutas.
-- `api.js`: instancia centralizada de Axios para comunicarse con el backend.
-- `components/`: contiene componentes reutilizables de la interfaz.
-- `components/VacantesList.jsx`: consulta y muestra las vacantes disponibles.
-- `components/CrearCandidato.jsx`: formulario para crear candidatos, incluidas
-  sus habilidades.
+- `main.jsx` monta la aplicación React.
+- `App.jsx` configura la navegación y el marco común de las vistas.
+- `api.js` centraliza la instancia Axios utilizada para comunicarse con el
+  backend.
+- `components/` contiene el Dashboard, la navegación y las vistas de candidatos
+  y vacantes, incluidos sus formularios.
 
-## Capa de Comunicación
+## Rutas y navegación
 
-El archivo `api.js` crea una instancia de Axios con la URL base del backend
-local:
+`App.jsx` utiliza `BrowserRouter`, `Routes` y `Route`. Las vistas disponibles
+son:
+
+| Ruta | Componente | Responsabilidad |
+| --- | --- | --- |
+| `/` | `Dashboard` | Presenta métricas, gráficos y actividad obtenida de la API. |
+| `/vacantes` | `Vacantes` | Administra vacantes, postulaciones y evaluaciones. |
+| `/candidatos` | `Candidatos` | Consulta y administra los candidatos registrados. |
+
+`Navbar` ofrece la navegación entre estas vistas. El componente `Toaster` de
+`react-hot-toast`, registrado en `App.jsx`, muestra notificaciones de operación.
+
+## Comunicación con el backend
+
+`api.js` crea una instancia Axios cuya URL base se obtiene de la variable de
+entorno de Vite `VITE_API_URL`:
 
 ```javascript
+export const API_BASE_URL = import.meta.env.VITE_API_URL || ''
+
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000',
+  baseURL: API_BASE_URL,
 })
 ```
 
-Los componentes utilizan esta instancia para realizar peticiones HTTP sin
-repetir la dirección del servidor. `VacantesList.jsx` consume el endpoint
-`GET /vacantes/`, por lo que la petición completa se dirige a
-`http://127.0.0.1:8000/vacantes/`.
+La aplicación no fija una dirección del servidor en el código. Configura
+`VITE_API_URL` en el entorno de ejecución o de compilación correspondiente. Si
+se deja vacía, Axios utiliza las rutas relativas al mismo origen.
 
-## Componentes Actuales
+Las vistas usan esta instancia compartida para consultar los recursos de
+candidatos y vacantes, crear o editar registros, registrar postulaciones y
+solicitar evaluaciones. El formulario de candidato envía los campos y el PDF
+opcional mediante `multipart/form-data`.
 
-`VacantesList.jsx` usa `useState` para administrar la colección de vacantes, el
-indicador de carga, los mensajes de error y la edición inline. Además, la
-lógica de negocio de postulaciones utiliza estos estados:
+## Vistas principales
 
-- `candidatosDisponibles`: almacena los candidatos obtenidos de `GET
-  /candidatos/` para poblar el selector de asignación.
-- `vacanteExpandida`: guarda el ID de la tarjeta cuya sección de postulados
-  está abierta; permite alternar entre mostrar y ocultar sus datos.
-- `postulacionesActivas`: contiene la lista de postulaciones de la vacante
-  expandida, incluyendo el nombre del candidato y su estado.
+### Dashboard
 
-Al montarse, `useEffect` realiza peticiones asíncronas mediante
-`api.get('/vacantes/')` y `api.get('/candidatos/')`.
+`Dashboard.jsx` solicita candidatos y vacantes al backend al montarse. A partir
+de esas respuestas calcula los indicadores y las series que presenta con
+Recharts, incluidos los canales de origen y los scores de afinidad disponibles.
+La vista también representa los estados de carga y error de las consultas.
 
-El formulario `CrearCandidato.jsx` captura nombre, email, teléfono, canal de
-origen y el campo opcional `habilidades`. Este último se envía en la petición
-`POST /candidatos/` para que el agente pueda compararlo con la descripción de
-una vacante. `CandidatosList.jsx` también permite editar y enviar habilidades
-mediante `PUT /candidatos/{candidato_id}`.
+### Vacantes
 
-El componente utiliza renderizado condicional para mostrar:
+`Vacantes.jsx` consulta vacantes y candidatos para presentar ofertas y permitir
+la asignación de candidatos. También permite crear, actualizar y eliminar
+vacantes, consultar postulaciones y solicitar la evaluación de una postulación.
+Las respuestas de evaluación se utilizan para mostrar el score, la justificación
+y la fuente informada por el backend.
 
-- Un mensaje de carga mientras la petición está en curso.
-- Un mensaje de error si la API no responde correctamente.
-- Un mensaje informativo cuando no existen vacantes.
-- Tarjetas con título, descripción, estado, edición, eliminación y asignación
-  de candidatos cuando hay resultados.
+### Candidatos
 
-### Flujo de postulaciones
+`Candidatos.jsx` presenta los candidatos con sus postulaciones y afinidad
+disponible. Permite actualizar los datos soportados por la API y abrir el
+formulario de creación. Cuando el candidato no tiene un score, la interfaz lo
+indica como no evaluado en lugar de inventar uno.
 
-Para asignar un candidato, el usuario lo selecciona en la tarjeta de una
-vacante y pulsa **Asignar Candidato**. El componente envía un `POST
-/postulaciones/` con `candidato_id` y `vacante_id`; si la operación es exitosa,
-muestra una notificación de confirmación.
+### Formularios
 
-El botón **Ver Postulados** consulta `GET
-/vacantes/{vacante_id}/postulaciones` cuando la tarjeta se expande. La respuesta
-se guarda en `postulacionesActivas` y se renderiza debajo de los controles,
-mostrando el nombre del candidato y el estado de cada postulación.
+`CrearCandidato.jsx` envía los datos del candidato y acepta adjuntar un CV PDF.
+`CrearVacante.jsx` envía los datos de una vacante. Ambos formularios utilizan la
+instancia Axios centralizada y presentan el resultado de la operación mediante
+la interfaz.
 
-Las acciones de la interfaz usan `react-hot-toast` para mostrar notificaciones
-de éxito y error sin bloquear la navegación. `App.jsx` registra el componente
-`<Toaster />`. Los botones de las tarjetas utilizan iconos de `lucide-react`,
-como `Edit`, `Trash2`, `UserPlus`, `CheckCircle` y `Bot`, junto con sus textos
-descriptivos.
+## Estilos e interfaz
 
-También evita actualizar el estado si el componente ya fue desmontado, lo que
-previene actualizaciones tardías durante cambios de ruta o desmontajes.
-
-## Manejo de Rutas
-
-`App.jsx` utiliza `BrowserRouter` como proveedor de navegación y define sus
-rutas mediante `Routes` y `Route`. Actualmente existe una ruta principal:
-
-- `/`: muestra el título `PluriOne - Portal de Reclutamiento` y el componente
-  `VacantesList`.
-
-Esta estructura permite agregar nuevas vistas y rutas sin concentrar toda la
-lógica de navegación en un solo componente.
-
-Se migró el layout a un diseño SaaS con Sidebar y un Dashboard analítico utilizando recharts.
+Las vistas utilizan Tailwind CSS para su diseño adaptable, Recharts para las
+visualizaciones del Dashboard y Lucide React para los iconos de acciones y
+controles.

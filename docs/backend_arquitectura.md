@@ -24,11 +24,12 @@ Sus responsabilidades principales son:
 | `backend/database.py` | Carga `DATABASE_URL`, crea el engine SQLAlchemy y configura sesiones. |
 | `backend/models.py` | Define las entidades `Candidato`, `CandidatoCV`, `Vacante` y `Postulacion`. |
 | `backend/schemas.py` | Valida payloads y define esquemas de entrada/salida, incluidos los envelopes de canales. |
-| `backend/ia_agent.py` | Extrae texto de PDF y evalúa afinidad con Gemini o el evaluador simulado. |
+| `backend/ia_agent.py` | Extrae texto de PDF, construye un perfil estructurado y evalúa afinidad con Gemini o el evaluador simulado. |
 
 La variable `DATABASE_URL` se configura por entorno o en `backend/.env`. Al
 iniciar la aplicación, `models.Base.metadata.create_all(bind=engine)` crea las
-tablas que todavía no existan.
+tablas que todavía no existan y `ensure_candidate_profile_column()` incorpora
+el nuevo campo JSON a instalaciones que ya tenían la tabla de candidatos.
 
 ## 3. Modelo de datos
 
@@ -46,6 +47,7 @@ erDiagram
         string telefono
         string canal_origen
         string habilidades
+        json perfil_estructurado
         datetime fecha_postulacion
     }
 
@@ -183,9 +185,10 @@ observabilidad.
 El formulario de creación utiliza `POST /api/v1/candidatos/con-cv` para crear un
 candidato y adjuntar un CV opcional. El backend recibe los campos como
 `multipart/form-data`; si se adjunta un PDF, extrae su texto y lo persiste en
-`CandidatoCV` junto con el nombre original. El archivo binario se mantiene en
-memoria durante la solicitud y no se guarda en el servidor. Esta ruta no ejecuta
-la evaluación Gemini todavía.
+`CandidatoCV` junto con el nombre original. También ejecuta el agente extractor
+y persiste el perfil resultante en `Candidato.perfil_estructurado`. El archivo
+binario se mantiene en memoria durante la solicitud y no se guarda en el servidor.
+Esta ruta no ejecuta la evaluación de afinidad.
 
 El endpoint recomendado para asociar la evaluación al historial del candidato es
 `POST /api/v1/candidatos/{candidato_id}/cv`. Recibe el campo multipart
@@ -205,20 +208,23 @@ Flujo:
 5. Un archivo vacío, corrupto, que no sea PDF o que no tenga texto extraíble se
    rechaza con HTTP `400`. Los archivos sobre el límite se rechazan con HTTP
    `413`.
-6. El texto completo extraído del CV y la descripción de la vacante se entregan
-   a `ia_agent.evaluar_candidato`; no se limita el análisis a un conteo de
-   palabras o a la cadena de habilidades del candidato.
-7. El agente inicializa el SDK oficial `google-genai` con `GEMINI_API_KEY` y
-   solicita una evaluación semántica a **Gemini 1.5 Flash**
-   (`gemini-1.5-flash`). El modelo devuelve JSON con un score entero de `0` a
-   `100` y una justificación breve.
-8. Se validan los campos de la respuesta. Si falta la API key, Gemini falla o la
-   respuesta no es válida, se ejecuta `evaluar_candidato_simulado`, un fallback
-   determinista basado en coincidencias de palabras clave. La respuesta incluye
-   `fuente: "gemini"` o `fuente: "simulado"` para identificar el evaluador.
-9. El endpoint persiste `score_compatibilidad` y `justificacion_agente` en la
-   postulación y devuelve el resultado con la fuente de evaluación. Si la
-   persistencia falla, revierte la transacción y responde con error HTTP.
+6. `ia_agent.extraer_perfil_candidato` recibe el texto completo y usa el agente
+   extractor de `google-genai` para producir JSON con `habilidades`,
+   `años_experiencia` e `idiomas`. La respuesta se valida antes de usarla.
+7. El perfil estructurado se guarda en la columna JSON
+   `Candidato.perfil_estructurado`; el texto completo continúa disponible en
+   `CandidatoCV.texto_extraido`.
+8. `ia_agent.evaluar_candidato` recibe el perfil estructurado y la descripción
+   de la vacante, y solicita al agente evaluador una comparación semántica con
+   **Gemini 1.5 Flash** (`gemini-1.5-flash`). El resultado es JSON con score
+   entero de `0` a `100` y una justificación breve.
+9. Si Gemini no está configurado, falla o devuelve datos inválidos, el extractor
+   construye un perfil local y/o el evaluador usa `evaluar_candidato_simulado`,
+   que compara las habilidades detectadas con las requeridas por la vacante. La
+   fuente de la evaluación se identifica como `gemini` o `simulado`.
+10. El endpoint persiste `score_compatibilidad` y `justificacion_agente` en la
+    postulación y devuelve el resultado con la fuente de evaluación. Si la
+    persistencia falla, revierte la transacción y responde con error HTTP.
 
 El score es una señal orientativa para el equipo de reclutamiento y no una
 decisión automatizada de empleo. La extracción de texto no incluye OCR para

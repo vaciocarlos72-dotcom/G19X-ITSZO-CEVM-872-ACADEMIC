@@ -1,8 +1,9 @@
 """Modelos relacionales principales del proceso de reclutamiento."""
 
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -19,6 +20,9 @@ class Candidato(Base):
     telefono: Mapped[str | None] = mapped_column(String(30), nullable=True)
     canal_origen: Mapped[str] = mapped_column(String(100), nullable=False)
     habilidades: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    perfil_estructurado: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True
+    )
     fecha_postulacion: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, nullable=False
     )

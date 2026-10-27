@@ -2,11 +2,8 @@ import { useEffect, useState } from 'react'
 import {
   Bot,
   Briefcase,
-  Building2,
   CheckCircle,
   Edit,
-  Laptop,
-  MapPin,
   LoaderCircle,
   Trash2,
   Upload,
@@ -18,52 +15,11 @@ import toast from 'react-hot-toast'
 import api, { API_BASE_URL } from '../api'
 import CrearVacante from './CrearVacante'
 
-const vacantesDemo = [
-  {
-    id: 'demo-react',
-    titulo: 'Desarrollador React',
-    descripcion: 'Construye experiencias web rápidas y accesibles para nuestros productos digitales.',
-    estado: 'Activa',
-    ubicacion: 'Remoto',
-    contrato: 'Tiempo completo',
-    postulacionesDemo: 18,
-    limiteDemo: 30,
-    esDemo: true,
-  },
-  {
-    id: 'demo-data',
-    titulo: 'Ingeniero de Datos',
-    descripcion: 'Diseña pipelines de datos escalables y habilita decisiones basadas en información.',
-    estado: 'Activa',
-    ubicacion: 'Híbrido',
-    contrato: 'Tiempo completo',
-    postulacionesDemo: 12,
-    limiteDemo: 24,
-    esDemo: true,
-  },
-  {
-    id: 'demo-product',
-    titulo: 'Product Designer',
-    descripcion: 'Lleva ideas de producto a soluciones intuitivas centradas en las personas.',
-    estado: 'Activa',
-    ubicacion: 'Remoto',
-    contrato: 'Contrato',
-    postulacionesDemo: 9,
-    limiteDemo: 20,
-    esDemo: true,
-  },
-  {
-    id: 'demo-people',
-    titulo: 'People & Culture Analyst',
-    descripcion: 'Impulsa iniciativas de talento, cultura y desarrollo organizacional.',
-    estado: 'Cerrada',
-    ubicacion: 'Híbrido',
-    contrato: 'Tiempo completo',
-    postulacionesDemo: 20,
-    limiteDemo: 20,
-    esDemo: true,
-  },
-]
+const etiquetaFuenteEvaluacion = (fuente) => {
+  if (fuente === 'gemini') return 'Gemini'
+  if (fuente === 'simulado') return 'Simulado'
+  return null
+}
 
 function Vacantes({ refreshTrigger }) {
   const [vacantes, setVacantes] = useState([])
@@ -71,7 +27,6 @@ function Vacantes({ refreshTrigger }) {
   const [error, setError] = useState('')
   const [mostrarModalNueva, setMostrarModalNueva] = useState(false)
   const [refreshVacantes, setRefreshVacantes] = useState(0)
-  const [usandoDatosDemo, setUsandoDatosDemo] = useState(false)
   const [editandoId, setEditandoId] = useState(null)
   const [datosEdicion, setDatosEdicion] = useState({})
   const [candidatosDisponibles, setCandidatosDisponibles] = useState([])
@@ -83,6 +38,16 @@ function Vacantes({ refreshTrigger }) {
   const [erroresCv, setErroresCv] = useState({})
   const [evaluandoCv, setEvaluandoCv] = useState({})
   const [isLoading, setIsLoading] = useState({})
+
+  const vacantesParaRenderizar = Array.isArray(vacantes)
+    ? vacantes.filter(Boolean)
+    : []
+  const candidatosParaRenderizar = Array.isArray(candidatosDisponibles)
+    ? candidatosDisponibles.filter(Boolean)
+    : []
+  const postulacionesParaRenderizar = Array.isArray(postulacionesActivas)
+    ? postulacionesActivas.filter(Boolean)
+    : []
 
   const getEstadoBadge = (estado) => {
     const estadoNormalizado = (estado || '').toLowerCase()
@@ -102,19 +67,10 @@ function Vacantes({ refreshTrigger }) {
       try {
         const response = await api.get('/vacantes/')
         if (isMounted) {
-          setUsandoDatosDemo(response.data.length === 0)
           setVacantes(
-            response.data.length === 0
-              ? vacantesDemo
-              : response.data.map((vacante, index) => ({
-                  ...vacante,
-                  ubicacion: vacante.ubicacion || (index % 2 ? 'Híbrido' : 'Remoto'),
-                  contrato: vacante.contrato || 'Tiempo completo',
-                  postulacionesDemo:
-                    vacante.postulaciones?.length ??
-                    [18, 12, 9, 20][index % 4],
-                  limiteDemo: [30, 24, 20, 20][index % 4],
-                })),
+            Array.isArray(response.data)
+              ? response.data.filter(Boolean)
+              : [],
           )
         }
       } catch {
@@ -142,7 +98,11 @@ function Vacantes({ refreshTrigger }) {
       try {
         const response = await api.get('/candidatos/')
         if (isMounted) {
-          setCandidatosDisponibles(response.data)
+          setCandidatosDisponibles(
+            Array.isArray(response.data)
+              ? response.data.filter(Boolean)
+              : [],
+          )
         }
       } catch {
         if (isMounted) {
@@ -165,7 +125,6 @@ function Vacantes({ refreshTrigger }) {
       setVacantes((currentVacantes) =>
         currentVacantes.filter((vacante) => vacante.id !== id),
       )
-      setUsandoDatosDemo(false)
       toast.success('Vacante eliminada correctamente.')
     } catch {
       setError('No se pudo eliminar la vacante.')
@@ -198,13 +157,7 @@ function Vacantes({ refreshTrigger }) {
       setVacantes((currentVacantes) =>
         currentVacantes.map((vacante) =>
           vacante.id === id
-            ? {
-                ...response.data,
-                ubicacion: vacante.ubicacion,
-                contrato: vacante.contrato,
-                postulacionesDemo: vacante.postulacionesDemo,
-                limiteDemo: vacante.limiteDemo,
-              }
+            ? response.data
             : vacante,
         ),
       )
@@ -249,7 +202,11 @@ function Vacantes({ refreshTrigger }) {
 
     try {
       const response = await api.get(`/vacantes/${vacanteId}/postulaciones`)
-      setPostulacionesActivas(response.data)
+      setPostulacionesActivas(
+        Array.isArray(response.data)
+          ? response.data.filter(Boolean)
+          : [],
+      )
       setVacanteExpandida(vacanteId)
       setError('')
     } catch {
@@ -368,6 +325,7 @@ function Vacantes({ refreshTrigger }) {
                 ...actual,
                 score_compatibilidad: resultado.score,
                 justificacion_agente: resultado.justificacion,
+                fuente: resultado.fuente,
               }
             : actual,
         ),
@@ -416,7 +374,8 @@ function Vacantes({ refreshTrigger }) {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="w-fit rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
-            {vacantes.length} {vacantes.length === 1 ? 'posición' : 'posiciones'}
+            {vacantesParaRenderizar.length}{' '}
+            {vacantesParaRenderizar.length === 1 ? 'posición' : 'posiciones'}
           </span>
           <button
             type="button"
@@ -428,19 +387,13 @@ function Vacantes({ refreshTrigger }) {
           </button>
         </div>
       </div>
-      {usandoDatosDemo && (
-        <p className="rounded-lg border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-800">
-          Mostrando 4 vacantes de demostración. Se reemplazarán al crear
-          vacantes reales.
-        </p>
-      )}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {vacantes.map((vacante) => (
+        {vacantesParaRenderizar.map((vacante) => (
           <article
-            key={vacante.id}
+            key={vacante?.id}
             className="flex flex-col rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg sm:p-6"
           >
-            {editandoId === vacante.id ? (
+            {editandoId === vacante?.id ? (
               <div className="space-y-3">
                 <input
                   value={datosEdicion.titulo || ''}
@@ -478,7 +431,7 @@ function Vacantes({ refreshTrigger }) {
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => guardarEdicion(vacante.id)}
+                    onClick={() => guardarEdicion(vacante?.id)}
                     className="flex items-center gap-1 rounded bg-emerald-500 px-3 py-1 text-white transition hover:scale-105 hover:bg-emerald-600"
                   >
                     <CheckCircle size={16} aria-hidden="true" />
@@ -503,36 +456,24 @@ function Vacantes({ refreshTrigger }) {
                     </span>
                     <div className="min-w-0">
                       <h3 className="text-lg font-semibold leading-6 text-slate-900">
-                        {vacante.titulo}
+                        {vacante?.titulo || 'Vacante sin título'}
                       </h3>
                       <p className="mt-1 text-xs font-medium text-slate-500">
                         Proceso de selección
                       </p>
                     </div>
                   </div>
-                  <span
-                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${getEstadoBadge(vacante.estado)}`}
-                  >
-                    {vacante.estado}
-                  </span>
+                  {vacante?.estado && (
+                    <span
+                      className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${getEstadoBadge(vacante?.estado)}`}
+                    >
+                      {vacante?.estado || 'Sin estado'}
+                    </span>
+                  )}
                 </div>
                 <p className="mt-4 min-h-10 text-sm leading-6 text-slate-600">
-                  {vacante.descripcion || 'Sin descripcion'}
+                  {vacante?.descripcion || 'Sin descripción'}
                 </p>
-                <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-b border-slate-100 pb-4 text-sm">
-                  <span className="inline-flex items-center gap-2 text-slate-600">
-                    {vacante.ubicacion === 'Remoto' ? (
-                      <Laptop size={16} className="text-slate-400" aria-hidden="true" />
-                    ) : (
-                      <MapPin size={16} className="text-slate-400" aria-hidden="true" />
-                    )}
-                    {vacante.ubicacion || 'Ubicación flexible'}
-                  </span>
-                  <span className="inline-flex items-center gap-2 text-slate-600">
-                    <Building2 size={16} className="text-slate-400" aria-hidden="true" />
-                    {vacante.contrato || 'Tiempo completo'}
-                  </span>
-                </div>
                 <div className="mt-4">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <span className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
@@ -540,74 +481,50 @@ function Vacantes({ refreshTrigger }) {
                       Candidatos postulados
                     </span>
                     <span className="text-xs font-semibold text-slate-600">
-                      {vacante.postulacionesDemo} / {vacante.limiteDemo}
+                      {vacante?.postulaciones?.length ?? 0}
                     </span>
                   </div>
-                  <div
-                    className="h-2 overflow-hidden rounded-full bg-slate-100"
-                    role="progressbar"
-                    aria-label={`Postulaciones para ${vacante.titulo}`}
-                    aria-valuemin={0}
-                    aria-valuemax={vacante.limiteDemo}
-                    aria-valuenow={Math.min(
-                      vacante.postulacionesDemo,
-                      vacante.limiteDemo,
-                    )}
-                  >
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        vacante.esDemo ? 'bg-indigo-500' : 'bg-blue-600'
-                      }`}
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          (vacante.postulacionesDemo / vacante.limiteDemo) * 100,
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="mt-1.5 text-right text-xs text-slate-400">
-                    Meta de postulaciones
+                  <p className="mt-1.5 text-xs text-slate-400">
+                    postulaciones registradas
                   </p>
                 </div>
-                {!vacante.esDemo && <div className="mt-4 border-t border-gray-200 pt-4">
+                <div className="mt-4 border-t border-gray-200 pt-4">
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <select
-                      value={candidatoSeleccionado[vacante.id] || ''}
+                      value={candidatoSeleccionado[vacante?.id] || ''}
                       onChange={(event) =>
                         setCandidatoSeleccionado((currentSelection) => ({
                           ...currentSelection,
-                          [vacante.id]: event.target.value,
+                          [vacante?.id]: event.target.value,
                         }))
                       }
                       className="flex-1 rounded border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      aria-label={`Candidato para ${vacante.titulo}`}
+                      aria-label={`Candidato para ${vacante?.titulo || 'vacante'}`}
                     >
                       <option value="">Seleccionar candidato</option>
-                      {candidatosDisponibles.map((candidato) => (
-                        <option key={candidato.id} value={candidato.id}>
-                          {candidato.nombre}
+                      {candidatosParaRenderizar.map((candidato) => (
+                        <option key={candidato?.id} value={candidato?.id}>
+                          {candidato?.nombre || 'Candidato'}
                         </option>
                       ))}
                     </select>
                     <button
                       type="button"
-                      onClick={() => asignarCandidato(vacante.id)}
+                      onClick={() => asignarCandidato(vacante?.id)}
                       className="flex items-center justify-center gap-1 rounded bg-emerald-500 px-3 py-2 text-white transition hover:scale-105 hover:bg-emerald-600"
                     >
                       <UserPlus size={16} aria-hidden="true" />
                       Asignar Candidato
                     </button>
                   </div>
-                </div>}
-                {!vacante.esDemo && (
+                </div>
                 <div className="mt-4 flex justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => mostrarPostulados(vacante.id)}
+                    onClick={() => mostrarPostulados(vacante?.id)}
                     className="rounded bg-blue-600 px-3 py-1 text-white transition hover:scale-105 hover:bg-blue-700"
                   >
-                    {vacanteExpandida === vacante.id
+                    {vacanteExpandida === vacante?.id
                       ? 'Ocultar Postulados'
                       : 'Ver Postulados'}
                   </button>
@@ -621,70 +538,74 @@ function Vacantes({ refreshTrigger }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => eliminarRegistro(vacante.id)}
+                    onClick={() => eliminarRegistro(vacante?.id)}
                     className="flex items-center gap-1 rounded bg-rose-500 px-3 py-1 text-white transition hover:scale-105 hover:bg-rose-600"
                   >
                     <Trash2 size={16} aria-hidden="true" />
                     Eliminar
                   </button>
                 </div>
-                )}
-                {vacanteExpandida === vacante.id && (
+                {vacanteExpandida === vacante?.id && (
                   <div className="mt-4 border-t border-gray-200 pt-4">
                     <h4 className="font-semibold text-gray-800">Postulados</h4>
-                    {postulacionesActivas.length === 0 ? (
+                    {postulacionesParaRenderizar.length === 0 ? (
                       <p className="mt-2 text-sm text-gray-600">
                         No hay postulados para esta vacante.
                       </p>
                     ) : (
                       <ul className="mt-2 space-y-2">
-                        {postulacionesActivas.map((postulacion) => (
+                        {postulacionesParaRenderizar.map((aplicacion) => (
                           <li
-                            key={postulacion.id}
+                            key={aplicacion?.id}
                             className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm"
                           >
                             <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
                               <div className="min-w-0">
                                 <p className="font-semibold text-slate-800">
-                                  {postulacion.candidato?.nombre || 'Candidato'}
+                                  {aplicacion?.candidato?.nombre || 'Candidato'}
                                 </p>
                                 <p className="mt-1 text-xs text-slate-500">
-                                  Estado: {postulacion.estado}
+                                  Estado: {aplicacion?.estado || 'Sin estado'}
                                 </p>
                                 <p className="mt-2 text-sm italic text-slate-600">
-                                  {postulacion.justificacion_agente ||
+                                  {aplicacion?.justificacion_agente ||
                                     'Aún no evaluada.'}
                                 </p>
+                                {etiquetaFuenteEvaluacion(aplicacion?.fuente) && (
+                                  <p className="mt-1 text-xs font-medium text-slate-500">
+                                    Fuente: {etiquetaFuenteEvaluacion(aplicacion?.fuente)}
+                                  </p>
+                                )}
                               </div>
                               <div className="flex shrink-0 flex-wrap items-center gap-2">
                                 <span
                                   className={`rounded-lg px-2.5 py-1.5 text-sm font-bold ${
-                                    postulacion.score_compatibilidad >= 80
+                                    aplicacion?.score_compatibilidad >= 80
                                       ? 'bg-emerald-50 text-emerald-700'
-                                      : postulacion.score_compatibilidad >= 50
+                                      : aplicacion?.score_compatibilidad >= 50
                                         ? 'bg-amber-50 text-amber-700'
-                                        : postulacion.score_compatibilidad !==
+                                        : aplicacion?.score_compatibilidad !==
                                             null &&
-                                          postulacion.score_compatibilidad !==
+                                          aplicacion?.score_compatibilidad !==
                                             undefined
                                           ? 'bg-rose-50 text-rose-700'
                                           : 'bg-slate-100 text-slate-500'
                                   }`}
                                 >
-                                  {postulacion.score_compatibilidad ??
-                                    'Sin score'}
-                                  {postulacion.score_compatibilidad !== null &&
-                                    postulacion.score_compatibilidad !==
+                                  {aplicacion?.score_compatibilidad ??
+                                    'Sin evaluar'}
+                                  {aplicacion?.score_compatibilidad !== null &&
+                                    aplicacion?.score_compatibilidad !==
                                       undefined &&
                                     '%'}
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => evaluarPostulacion(postulacion.id)}
-                                  disabled={isLoading[postulacion.id]}
+                                  onClick={() => evaluarPostulacion(aplicacion?.id)}
+                                  disabled={isLoading?.[aplicacion?.id]}
                                   className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:cursor-wait disabled:opacity-70"
                                 >
-                                  {isLoading[postulacion.id] ? (
+                                  {isLoading?.[aplicacion?.id] ? (
                                     <>
                                       <LoaderCircle
                                         size={14}
@@ -705,7 +626,7 @@ function Vacantes({ refreshTrigger }) {
 
                             <div className="mt-4 border-t border-slate-200 pt-4">
                               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                Evaluar CV con Gemini
+                                Evaluación de CV con IA
                               </p>
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                 <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 transition hover:border-indigo-300 hover:bg-indigo-50/50">
@@ -715,17 +636,17 @@ function Vacantes({ refreshTrigger }) {
                                     aria-hidden="true"
                                   />
                                   <span className="truncate">
-                                    {cvSeleccionados[postulacion.id]?.name ||
+                                    {cvSeleccionados?.[aplicacion?.id]?.name ||
                                       'Seleccionar CV en PDF'}
                                   </span>
                                   <input
                                     type="file"
                                     accept=".pdf,application/pdf"
                                     className="sr-only"
-                                    aria-label={`Seleccionar CV de ${postulacion.candidato?.nombre || 'candidato'}`}
+                                    aria-label={`Seleccionar CV de ${aplicacion?.candidato?.nombre || 'candidato'}`}
                                     onChange={(event) =>
                                       seleccionarCv(
-                                        postulacion.id,
+                                        aplicacion?.id,
                                         event.target.files?.[0] || null,
                                       )
                                     }
@@ -734,12 +655,12 @@ function Vacantes({ refreshTrigger }) {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    subirCvYEvaluar(postulacion, vacante.id)
+                                    subirCvYEvaluar(aplicacion, vacante?.id)
                                   }
-                                  disabled={evaluandoCv[postulacion.id]}
+                                  disabled={evaluandoCv?.[aplicacion?.id]}
                                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-70"
                                 >
-                                  {evaluandoCv[postulacion.id] ? (
+                                  {evaluandoCv?.[aplicacion?.id] ? (
                                     <>
                                       <LoaderCircle
                                         size={16}
@@ -756,24 +677,30 @@ function Vacantes({ refreshTrigger }) {
                                   )}
                                 </button>
                               </div>
-                              {erroresCv[postulacion.id] && (
+                              {erroresCv?.[aplicacion?.id] && (
                                 <p
                                   className="mt-2 text-xs font-medium text-rose-700"
                                   role="alert"
                                 >
-                                  {erroresCv[postulacion.id]}
+                                  {erroresCv?.[aplicacion?.id]}
                                 </p>
                               )}
-                              {evaluacionesCv[postulacion.id] && (
+                              {evaluacionesCv?.[aplicacion?.id] && (
                                 <div
                                   className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3"
                                   role="status"
                                 >
                                   <p className="text-sm font-semibold text-emerald-800">
-                                    Afinidad: {evaluacionesCv[postulacion.id].score}%
+                                    Afinidad: {evaluacionesCv?.[aplicacion?.id]?.score ?? 'Sin evaluar'}
+                                    {evaluacionesCv?.[aplicacion?.id]?.score != null && '%'}
                                   </p>
                                   <p className="mt-1 text-sm text-emerald-900">
-                                    {evaluacionesCv[postulacion.id].justificacion}
+                                    {evaluacionesCv?.[aplicacion?.id]?.justificacion || 'Sin justificación disponible.'}
+                                  </p>
+                                  <p className="mt-2 text-xs font-medium text-emerald-700">
+                                    Fuente: {etiquetaFuenteEvaluacion(
+                                      evaluacionesCv?.[aplicacion?.id]?.fuente,
+                                    ) || 'No disponible'}
                                   </p>
                                 </div>
                               )}

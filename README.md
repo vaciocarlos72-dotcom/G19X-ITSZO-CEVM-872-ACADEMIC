@@ -79,6 +79,7 @@ Edita `backend/.env` y configura valores propios:
 DATABASE_URL=postgresql+psycopg://postgres:tu-clave@localhost:5432/plurione_db
 WEBHOOK_API_KEY=define-una-clave-aleatoria-larga
 GEMINI_API_KEY=tu-clave-de-google-gemini
+GEMINI_MODEL=gemini-1.5-flash
 ```
 
 Compose define la URL interna de PostgreSQL para el backend. No subas los
@@ -200,25 +201,37 @@ El endpoint de evaluación persistente es
 `vacante_id` y un archivo PDF en el campo multipart `archivo`. El candidato debe
 tener una postulación para esa vacante.
 
-El flujo técnico es:
-
-1. FastAPI recibe el archivo mediante `UploadFile` y `File`.
-2. El backend lee el PDF en memoria (máximo 10 MB), sin guardarlo en disco.
-3. `PyPDF2.PdfReader` recibe `io.BytesIO` y extrae el texto de todas las páginas.
-4. El texto extraído y la descripción de la vacante se envían a Gemini 1.5 Flash
-   (`gemini-1.5-flash`) mediante el SDK oficial `google-genai`, para una
-   evaluación semántica del perfil frente a la vacante.
-5. El agente valida el JSON con un score entre 0 y 100 y una justificación
-   breve. Si Gemini no está configurado o falla, usa el evaluador simulado de
-   respaldo, que compara palabras clave.
-6. El score y la justificación se guardan en la postulación asociada.
+Para crear un candidato con un CV opcional, el endpoint extrae el texto del PDF
+y lo conserva junto con el nombre del archivo. La evaluación de afinidad se
+realiza mediante los dos agentes descritos en la sección **Uso de IA**. Los
+endpoints `POST /agente/evaluar-cv/{vacante_id}` y
+`POST /agente/evaluar/{postulacion_id}` permiten evaluar sin asociar una nueva
+carga de CV o reevaluar una postulación existente, respectivamente.
 
 Los PDFs vacíos, corruptos o sin texto extraíble se rechazan. No se incluye OCR
 para CV escaneados como imagen.
 
-El endpoint `POST /agente/evaluar-cv/{vacante_id}` ofrece además una evaluación
-sin asociar el resultado a una postulación. El endpoint
-`POST /agente/evaluar/{postulacion_id}` reevalúa una postulación ya registrada.
+## Uso de IA
+
+La evaluación de candidatos encadena dos agentes con tareas diferenciadas. El
+modelo se configura con `GEMINI_MODEL` (por defecto, `gemini-1.5-flash`) y el
+backend se conecta mediante el SDK `google-genai` y `GEMINI_API_KEY`.
+
+1. **Agente extractor:** recibe el texto completo obtenido del CV con PyPDF2 y
+   solicita a Gemini un perfil estructurado en JSON con `habilidades`,
+   `años_experiencia` e `idiomas`. El backend valida los campos y guarda el
+   perfil en `Candidato.perfil_estructurado`; el texto extraído se conserva
+   además en el registro del CV.
+2. **Agente evaluador:** recibe ese perfil estructurado y la descripción de la
+   vacante. Gemini compara la información y devuelve un score de afinidad de
+   `0` a `100` junto con una justificación breve. En evaluaciones asociadas a
+   una postulación, el score y la justificación se guardan en ella.
+
+Si Gemini no está configurado o falla, el extractor genera un perfil local con
+los datos reconocibles en el texto y el evaluador usa el respaldo simulado para
+comparar habilidades del perfil con las de la vacante. La respuesta identifica
+la fuente de evaluación como `gemini` o `simulado`. El score es una señal de
+apoyo: no sustituye la revisión ni la decisión de una persona reclutadora.
 
 ## Desarrollo manual
 

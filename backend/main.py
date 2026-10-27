@@ -20,8 +20,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
-from database import SessionLocal, engine
-from ia_agent import evaluar_candidato, extraer_texto_pdf
+from database import SessionLocal, engine, ensure_candidate_profile_column
+from ia_agent import evaluar_candidato, extraer_perfil_candidato, extraer_texto_pdf
 import models
 from schemas import (
     CandidatoCreate,
@@ -45,6 +45,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 models.Base.metadata.create_all(bind=engine)
+ensure_candidate_profile_column()
+MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -54,6 +56,38 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+async def _leer_texto_pdf_validado(archivo: UploadFile) -> str:
+    """Valida un PDF, extrae su texto en memoria y cierra el archivo."""
+    try:
+        if archivo.content_type != "application/pdf":
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="El archivo debe ser un PDF.",
+            )
+
+        contenido = await archivo.read(MAX_PDF_SIZE_BYTES + 1)
+        if len(contenido) > MAX_PDF_SIZE_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="El PDF no puede superar los 10 MB.",
+            )
+        if not contenido.startswith(b"%PDF-"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El archivo no contiene un PDF válido.",
+            )
+
+        try:
+            return extraer_texto_pdf(contenido)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se pudo leer el PDF: {exc}",
+            ) from exc
+    finally:
+        await archivo.close()
 
 
 def validar_api_key_webhook(
@@ -124,32 +158,20 @@ async def create_candidate_with_cv(
     """Crea un candidato y, si se envía, adjunta el texto extraído del CV."""
     texto_cv = None
     nombre_archivo = None
+    perfil_estructurado = None
 
     if archivo is not None:
         try:
-            contenido = await archivo.read(10 * 1024 * 1024 + 1)
-            if len(contenido) > 10 * 1024 * 1024:
-                raise HTTPException(
-                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                    detail="El PDF no puede superar los 10 MB.",
-                )
-            if (
-                archivo.content_type != "application/pdf"
-                or not contenido.startswith(b"%PDF-")
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="El archivo seleccionado no es un PDF válido.",
-                )
-            texto_cv = extraer_texto_pdf(contenido)
+            texto_cv = await _leer_texto_pdf_validado(archivo)
             nombre_archivo = os.path.basename(archivo.filename or "cv.pdf")[:255]
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"No se pudo leer el PDF: {exc}",
-            ) from exc
-        finally:
-            await archivo.close()
+            perfil_estructurado = extraer_perfil_candidato(texto_cv)
+        except HTTPException as exc:
+            if exc.status_code == status.HTTP_400_BAD_REQUEST:
+                raise HTTPException(
+                    status_code=exc.status_code,
+                    detail=f"El archivo seleccionado no es un PDF válido: {exc.detail}",
+                ) from exc
+            raise
 
     candidato_data = CandidatoCreate(
         nombre=nombre.strip(),
@@ -159,6 +181,7 @@ async def create_candidate_with_cv(
         habilidades=habilidades.strip() if habilidades and habilidades.strip() else None,
     )
     candidato = models.Candidato(**candidato_data.model_dump(exclude_unset=True))
+    candidato.perfil_estructurado = perfil_estructurado
 
     try:
         db.add(candidato)
@@ -424,12 +447,17 @@ def evaluar_postulacion(postulacion_id: int, db: Session = Depends(get_db)):
         key=lambda curriculum: curriculum.fecha_carga,
         default=None,
     )
-    texto_cv = (
-        cv_reciente.texto_extraido
-        if cv_reciente is not None
-        else candidato.habilidades
+    if candidato.perfil_estructurado is None:
+        texto_cv = (
+            cv_reciente.texto_extraido
+            if cv_reciente is not None
+            else candidato.habilidades
+        )
+        candidato.perfil_estructurado = extraer_perfil_candidato(texto_cv)
+    perfil_estructurado = candidato.perfil_estructurado
+    resultado_agente = evaluar_candidato(
+        perfil_estructurado, vacante.descripcion
     )
-    resultado_agente = evaluar_candidato(texto_cv, vacante.descripcion)
     postulacion.score_compatibilidad = resultado_agente["score"]
     postulacion.justificacion_agente = resultado_agente["justificacion"]
 
@@ -462,33 +490,10 @@ async def evaluar_cv_pdf(
             detail="Vacante no encontrada.",
         )
 
-    if archivo.content_type != "application/pdf":
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="El archivo debe ser un PDF.",
-        )
+    texto_cv = await _leer_texto_pdf_validado(archivo)
+    perfil_estructurado = extraer_perfil_candidato(texto_cv)
 
-    contenido = await archivo.read(10 * 1024 * 1024 + 1)
-    if len(contenido) > 10 * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="El PDF no puede superar los 10 MB.",
-        )
-    if not contenido.startswith(b"%PDF-"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El archivo no contiene un PDF válido.",
-        )
-
-    try:
-        texto_cv = extraer_texto_pdf(contenido)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
-
-    return evaluar_candidato(texto_cv, vacante.descripcion)
+    return evaluar_candidato(perfil_estructurado, vacante.descripcion)
 
 
 @app.post("/api/v1/candidatos/{candidato_id}/cv")
@@ -528,29 +533,10 @@ async def cargar_cv_candidato(
             detail="El candidato no tiene una postulación para esta vacante.",
         )
 
-    try:
-        contenido = await archivo.read(10 * 1024 * 1024 + 1)
-        if len(contenido) > 10 * 1024 * 1024:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="El PDF no puede superar los 10 MB.",
-            )
-        if not contenido.startswith(b"%PDF-"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El archivo está vacío o no es un PDF válido.",
-            )
-
-        texto_cv = extraer_texto_pdf(contenido)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No se pudo leer el PDF: {exc}",
-        ) from exc
-    finally:
-        await archivo.close()
-
-    resultado = evaluar_candidato(texto_cv, vacante.descripcion)
+    texto_cv = await _leer_texto_pdf_validado(archivo)
+    perfil_estructurado = extraer_perfil_candidato(texto_cv)
+    candidato.perfil_estructurado = perfil_estructurado
+    resultado = evaluar_candidato(perfil_estructurado, vacante.descripcion)
     postulacion.score_compatibilidad = resultado["score"]
     postulacion.justificacion_agente = resultado["justificacion"]
 

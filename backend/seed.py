@@ -6,12 +6,13 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
 import models
-from database import SessionLocal, engine
+from database import SessionLocal, engine, ensure_candidate_profile_column
 
 
 def seed_database() -> None:
     """Inserta vacantes, candidatos y postulaciones iniciales una sola vez."""
     models.Base.metadata.create_all(bind=engine)
+    ensure_candidate_profile_column()
     db = SessionLocal()
 
     try:

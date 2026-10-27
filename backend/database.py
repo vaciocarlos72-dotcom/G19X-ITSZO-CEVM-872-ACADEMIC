@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 
@@ -21,3 +21,19 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 class Base(DeclarativeBase):
     """Clase base para los modelos persistidos en PostgreSQL."""
+
+
+def ensure_candidate_profile_column() -> None:
+    """Añade el campo de perfil a bases existentes sin afectar instalaciones nuevas."""
+    if "perfil_estructurado" in {
+        column["name"] for column in inspect(engine).get_columns("candidatos")
+    }:
+        return
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "ALTER TABLE candidatos "
+                "ADD COLUMN perfil_estructurado JSON"
+            )
+        )

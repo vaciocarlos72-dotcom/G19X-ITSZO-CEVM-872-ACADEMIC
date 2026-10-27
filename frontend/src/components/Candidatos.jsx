@@ -16,64 +16,6 @@ import toast from 'react-hot-toast'
 import api from '../api'
 import CrearCandidato from './CrearCandidato'
 
-const puntajesDemo = [92, 85, 78, 96]
-const diasDemo = [0, 1, 2, 4]
-
-const candidatosDemo = [
-  {
-    id: 'demo-valentina',
-    nombre: 'Valentina Ríos',
-    email: 'valentina.rios@example.com',
-    telefono: '+52 55 0101 0202',
-    canal_origen: 'LinkedIn',
-    habilidades: 'React, TypeScript, diseño de sistemas',
-    puesto: 'Desarrollador React',
-    fechaVista: new Date().toISOString(),
-    estadoVista: 'En Entrevista',
-    matchVista: 92,
-    esDemo: true,
-  },
-  {
-    id: 'demo-andres',
-    nombre: 'Andrés Morales',
-    email: 'andres.morales@example.com',
-    telefono: '+52 55 0101 0303',
-    canal_origen: 'Referido',
-    habilidades: 'Python, SQL, modelado de datos',
-    puesto: 'Ingeniero de Datos',
-    fechaVista: new Date(Date.now() - 86_400_000).toISOString(),
-    estadoVista: 'Nuevo',
-    matchVista: 85,
-    esDemo: true,
-  },
-  {
-    id: 'demo-camila',
-    nombre: 'Camila Torres',
-    email: 'camila.torres@example.com',
-    telefono: '+52 55 0101 0404',
-    canal_origen: 'Portal de empleo',
-    habilidades: 'Figma, investigación UX, prototipado',
-    puesto: 'Product Designer',
-    fechaVista: new Date(Date.now() - 2 * 86_400_000).toISOString(),
-    estadoVista: 'Contratado',
-    matchVista: 78,
-    esDemo: true,
-  },
-  {
-    id: 'demo-mateo',
-    nombre: 'Mateo Herrera',
-    email: 'mateo.herrera@example.com',
-    telefono: '+52 55 0101 0505',
-    canal_origen: 'LinkedIn',
-    habilidades: 'People Analytics, Excel, comunicación',
-    puesto: 'People & Culture Analyst',
-    fechaVista: new Date(Date.now() - 4 * 86_400_000).toISOString(),
-    estadoVista: 'Nuevo',
-    matchVista: 96,
-    esDemo: true,
-  },
-]
-
 const obtenerIniciales = (nombre = '') =>
   nombre
     .trim()
@@ -144,25 +86,17 @@ function Candidatos({ refreshTrigger }) {
 
         if (!isMounted) return
 
-        if (candidatosResponse.data.length === 0) {
-          setCandidatos(candidatosDemo)
-          return
-        }
-
         const vacantesPorId = new Map(
           vacantesResponse.data.map((vacante) => [vacante.id, vacante.titulo]),
         )
         const candidatosEnriquecidos = candidatosResponse.data.map(
-          (candidato, index) => {
+          (candidato) => {
             const postulaciones = [...(candidato.postulaciones || [])].sort(
               (a, b) =>
                 new Date(b.fecha_postulacion || 0) -
                 new Date(a.fecha_postulacion || 0),
             )
             const postulacionReciente = postulaciones[0]
-            const fechaSimulada = new Date(
-              Date.now() - diasDemo[index % diasDemo.length] * 86_400_000,
-            ).toISOString()
 
             return {
               ...candidato,
@@ -173,15 +107,12 @@ function Candidatos({ refreshTrigger }) {
               fechaVista:
                 postulacionReciente?.fecha_postulacion ||
                 candidato.fecha_postulacion ||
-                fechaSimulada,
+                null,
               estadoVista: postulacionReciente
                 ? obtenerEstado(postulacionReciente.estado)
                 : 'Nuevo',
-              matchVista:
-                postulacionReciente?.score_compatibilidad ??
-                puntajesDemo[index % puntajesDemo.length],
+              matchVista: postulacionReciente?.score_compatibilidad ?? null,
               postulacionId: postulacionReciente?.id,
-              esDemo: false,
             }
           },
         )
@@ -335,13 +266,6 @@ function Candidatos({ refreshTrigger }) {
         </div>
       </header>
 
-      {candidatos.some((candidato) => candidato.esDemo) && (
-        <p className="rounded-lg border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-800">
-          Mostrando perfiles de demostración. Se reemplazarán al registrar
-          candidatos reales.
-        </p>
-      )}
-
       {error && (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
           {error}
@@ -395,9 +319,14 @@ function Candidatos({ refreshTrigger }) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {candidatosFiltrados.map((candidato) => {
-                const match = Math.max(0, Math.min(100, candidato.matchVista))
+                const match =
+                  typeof candidato.matchVista === 'number'
+                    ? Math.max(0, Math.min(100, candidato.matchVista))
+                    : null
                 const matchColor =
-                  match >= 90
+                  match === null
+                    ? 'text-slate-500 bg-slate-100'
+                    : match >= 90
                     ? 'text-emerald-700 bg-emerald-50'
                     : match >= 80
                       ? 'text-amber-700 bg-amber-50'
@@ -612,9 +541,13 @@ function FragmentRow({
         <td className="whitespace-nowrap px-5 py-4">
           <span
             className={`inline-flex min-w-14 items-center justify-center rounded-lg px-2.5 py-1.5 text-sm font-bold ${matchColor}`}
-            aria-label={`Afinidad ${match} por ciento`}
+            aria-label={
+              match === null
+                ? 'Candidato sin evaluar'
+                : `Afinidad ${match} por ciento`
+            }
           >
-            {match}%
+            {match === null ? 'Sin evaluar' : `${match}%`}
           </span>
         </td>
         <td className="whitespace-nowrap px-5 py-4">
@@ -628,17 +561,15 @@ function FragmentRow({
             >
               <Eye size={16} aria-hidden="true" />
             </button>
-            {!candidato.esDemo && (
-              <button
-                type="button"
-                onClick={onEdit}
-                title="Editar candidato"
-                aria-label={`Editar ${candidato.nombre}`}
-                className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700"
-              >
-                <Pencil size={16} aria-hidden="true" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onEdit}
+              title="Editar candidato"
+              aria-label={`Editar ${candidato.nombre}`}
+              className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700"
+            >
+              <Pencil size={16} aria-hidden="true" />
+            </button>
             <a
               href={`mailto:${candidato.email}`}
               title="Contactar candidato"
