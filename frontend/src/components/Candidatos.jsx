@@ -7,6 +7,8 @@ import {
   Eye,
   Mail,
   Pencil,
+  Phone,
+  Radio,
   Search,
   UserPlus,
   UsersRound,
@@ -24,6 +26,36 @@ const obtenerIniciales = (nombre = '') =>
     .map((parte) => parte.charAt(0))
     .join('')
     .toUpperCase()
+
+const parsePerfilJson = (perfilJson) => {
+  if (!perfilJson) return null
+  if (typeof perfilJson === 'object') return perfilJson
+  if (typeof perfilJson !== 'string') return null
+
+  try {
+    const perfil = JSON.parse(perfilJson)
+    return perfil && typeof perfil === 'object' && !Array.isArray(perfil)
+      ? perfil
+      : null
+  } catch {
+    return null
+  }
+}
+
+const habilidadesDeCandidato = (candidato) => {
+  const perfil = parsePerfilJson(candidato?.perfil_json)
+  if (Array.isArray(perfil?.habilidades)) {
+    return perfil.habilidades.filter(
+      (habilidad) => typeof habilidad === 'string' && habilidad.trim(),
+    )
+  }
+  return typeof candidato?.habilidades === 'string'
+    ? candidato.habilidades
+        .split(/[,;|]/)
+        .map((habilidad) => habilidad.trim())
+        .filter(Boolean)
+    : []
+}
 
 const formatearFecha = (fecha) => {
   if (!fecha) return '—'
@@ -232,6 +264,7 @@ function Candidatos({ refreshTrigger }) {
   const candidatosActivos = candidatos.filter(
     (candidato) => candidato.estadoVista !== 'Descartado',
   ).length
+  const habilidadesPerfilAbierto = habilidadesDeCandidato(perfilAbierto)
 
   return (
     <section className="space-y-5 pb-8">
@@ -404,27 +437,50 @@ function Candidatos({ refreshTrigger }) {
               </button>
             </div>
             <dl className="mt-5 space-y-4 text-sm">
-              <div>
-                <dt className="font-medium text-slate-500">Correo</dt>
-                <dd className="mt-1 text-slate-800">{perfilAbierto.email}</dd>
+              <div className="flex items-start gap-3">
+                <Mail size={17} className="mt-0.5 text-indigo-500" aria-hidden="true" />
+                <div>
+                  <dt className="font-medium text-slate-500">Correo</dt>
+                  <dd className="mt-1 text-slate-800">{perfilAbierto.email || 'No especificado'}</dd>
+                </div>
               </div>
-              <div>
-                <dt className="font-medium text-slate-500">Teléfono</dt>
-                <dd className="mt-1 text-slate-800">
-                  {perfilAbierto.telefono || 'No especificado'}
-                </dd>
+              <div className="flex items-start gap-3">
+                <Phone size={17} className="mt-0.5 text-indigo-500" aria-hidden="true" />
+                <div>
+                  <dt className="font-medium text-slate-500">Teléfono</dt>
+                  <dd className="mt-1 text-slate-800">
+                    {perfilAbierto.telefono || 'No especificado'}
+                  </dd>
+                </div>
               </div>
-              <div>
-                <dt className="font-medium text-slate-500">Habilidades</dt>
-                <dd className="mt-1 text-slate-800">
-                  {perfilAbierto.habilidades || 'No especificadas'}
-                </dd>
+              <div className="flex items-start gap-3">
+                <BriefcaseBusiness size={17} className="mt-0.5 text-indigo-500" aria-hidden="true" />
+                <div className="min-w-0">
+                  <dt className="font-medium text-slate-500">Habilidades</dt>
+                  <dd className="mt-2 flex flex-wrap gap-2">
+                    {habilidadesPerfilAbierto.length > 0 ? (
+                      habilidadesPerfilAbierto.map((habilidad) => (
+                        <span
+                          key={habilidad}
+                          className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700"
+                        >
+                          {habilidad}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-slate-500">No especificadas</span>
+                    )}
+                  </dd>
+                </div>
               </div>
-              <div>
-                <dt className="font-medium text-slate-500">Canal de origen</dt>
-                <dd className="mt-1 text-slate-800">
-                  {perfilAbierto.canal_origen || 'No especificado'}
-                </dd>
+              <div className="flex items-start gap-3">
+                <Radio size={17} className="mt-0.5 text-indigo-500" aria-hidden="true" />
+                <div>
+                  <dt className="font-medium text-slate-500">Canal de origen</dt>
+                  <dd className="mt-1 text-slate-800">
+                    {perfilAbierto.canal_origen || 'No especificado'}
+                  </dd>
+                </div>
               </div>
             </dl>
             <a

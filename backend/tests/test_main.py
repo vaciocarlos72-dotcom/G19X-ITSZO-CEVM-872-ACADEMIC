@@ -302,6 +302,16 @@ def test_carga_cv_persiste_perfil_json(
             perfil_esperado, ensure_ascii=False
         )
 
+    perfil_json_esperado = json.dumps(perfil_esperado, ensure_ascii=False)
+    candidatos = client.get("/candidatos/").json()
+    assert candidatos[0]["perfil_json"] == perfil_json_esperado
+
+    postulaciones = client.get(
+        f"/vacantes/{vacante_id}/postulaciones"
+    ).json()
+    assert postulaciones[0]["perfil_json"] == perfil_json_esperado
+    assert postulaciones[0]["candidato"]["perfil_json"] == perfil_json_esperado
+
 
 def test_actualiza_esquema_existente_para_perfil_json(monkeypatch):
     legacy_engine = create_engine("sqlite+pysqlite:///:memory:")

@@ -14,6 +14,7 @@ import {
 import {
   Activity,
   BriefcaseBusiness,
+  Brain,
   Mail,
   MessageCircle,
   UsersRound,
@@ -53,6 +54,21 @@ const formatearFecha = (fecha) => {
 const nombreCorto = (nombre = '') => {
   const partes = nombre.trim().split(/\s+/)
   return partes.length > 1 ? `${partes[0]} ${partes[1][0]}.` : nombre
+}
+
+const parsePerfilJson = (perfilJson) => {
+  if (!perfilJson) return null
+  if (typeof perfilJson === 'object') return perfilJson
+  if (typeof perfilJson !== 'string') return null
+
+  try {
+    const perfil = JSON.parse(perfilJson)
+    return perfil && typeof perfil === 'object' && !Array.isArray(perfil)
+      ? perfil
+      : null
+  } catch {
+    return null
+  }
 }
 
 function Dashboard() {
@@ -112,10 +128,39 @@ function Dashboard() {
 
   const resumen = useMemo(() => {
     const conteoPorCanal = new Map()
+    const conteoHabilidades = new Map()
+    const experiencias = []
 
-    candidatos.forEach((candidato) => {
+    candidatos.filter(Boolean).forEach((candidato) => {
       const canal = normalizarCanal(candidato.canal_origen)
       conteoPorCanal.set(canal, (conteoPorCanal.get(canal) || 0) + 1)
+
+      const perfil = parsePerfilJson(candidato.perfil_json)
+      const habilidades = Array.isArray(perfil?.habilidades)
+        ? perfil.habilidades
+        : []
+      const habilidadesDelCandidato = new Set()
+      habilidades.forEach((habilidad) => {
+        if (typeof habilidad !== 'string' || !habilidad.trim()) return
+        const nombre = habilidad.trim()
+        const clave = nombre.toLocaleLowerCase()
+        if (!habilidadesDelCandidato.has(clave)) {
+          habilidadesDelCandidato.add(clave)
+          const actual = conteoHabilidades.get(clave)
+          conteoHabilidades.set(clave, {
+            habilidad: actual?.habilidad || nombre,
+            total: (actual?.total || 0) + 1,
+          })
+        }
+      })
+
+      if (
+        typeof perfil?.anios_experiencia === 'number' &&
+        Number.isFinite(perfil.anios_experiencia) &&
+        perfil.anios_experiencia >= 0
+      ) {
+        experiencias.push(perfil.anios_experiencia)
+      }
     })
     const distribucion = [...conteoPorCanal.entries()]
       .map(([name, value]) => ({
@@ -150,15 +195,28 @@ function Dashboard() {
           )
         : null
     const canalPrincipal = distribucion[0]
+    const topHabilidades = [...conteoHabilidades.values()]
+      .sort((a, b) => b.total - a.total || a.habilidad.localeCompare(b.habilidad))
+      .slice(0, 5)
     const vacantesActivas = vacantes.filter((vacante) => {
       const estado = (vacante.estado || '').toLowerCase()
       return estado.includes('abiert') || estado.includes('activ')
     }).length
+    const promedioExperiencia =
+      experiencias.length > 0
+        ? Math.round(
+            (experiencias.reduce((total, anios) => total + anios, 0) /
+              experiencias.length) *
+              10,
+          ) / 10
+        : null
 
     return {
       distribucion,
       scoresRecientes,
       promedio,
+      promedioExperiencia,
+      topHabilidades,
       canalPrincipal:
         canalPrincipal?.name || 'Sin datos',
       vacantesActivas,
@@ -202,6 +260,19 @@ function Dashboard() {
             : UsersRound,
       iconoClase: 'bg-emerald-50 text-emerald-600',
     },
+    {
+      etiqueta: 'Promedio de años de experiencia',
+      valor:
+        resumen.promedioExperiencia === null
+          ? '—'
+          : `${resumen.promedioExperiencia} años`,
+      detalle:
+        resumen.promedioExperiencia === null
+          ? 'Sin perfiles con experiencia extraída'
+          : 'Según los perfiles procesados por IA',
+      icono: Brain,
+      iconoClase: 'bg-amber-50 text-amber-600',
+    },
   ]
 
   if (loading) {
@@ -239,11 +310,11 @@ function Dashboard() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         {metricas.map(({ etiqueta, valor, detalle, icono: Icon, iconoClase }) => (
           <article
             key={etiqueta}
-            className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+            className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-indigo-50/60 p-5 shadow-md shadow-slate-200/50 transition duration-200 hover:-translate-y-0.5 hover:shadow-lg"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -262,7 +333,7 @@ function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6">
+        <article className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-sky-50/50 p-5 shadow-md shadow-slate-200/50 sm:p-6">
           <div className="mb-4">
             <h2 className="text-base font-semibold text-slate-900">
               Candidatos por canal de recepción
@@ -326,7 +397,7 @@ function Dashboard() {
           </div>
         </article>
 
-        <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6">
+        <article className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-violet-50/50 p-5 shadow-md shadow-slate-200/50 sm:p-6">
           <div className="mb-4">
             <h2 className="text-base font-semibold text-slate-900">
               Scores de afinidad IA
@@ -392,6 +463,74 @@ function Dashboard() {
           <p className="mt-2 text-xs text-slate-400">
             El score es una referencia para el equipo de reclutamiento.
           </p>
+        </article>
+
+        <article className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-emerald-50/50 p-5 shadow-md shadow-slate-200/50 sm:p-6">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">
+              Top 5 habilidades
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Habilidades más frecuentes en los perfiles extraídos
+            </p>
+          </div>
+          {resumen.topHabilidades.length === 0 ? (
+            <div className="flex h-64 items-center justify-center text-sm text-slate-400">
+              Aún no hay perfiles con habilidades extraídas.
+            </div>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={resumen.topHabilidades}
+                  layout="vertical"
+                  margin={{ top: 4, right: 12, left: 12, bottom: 4 }}
+                >
+                  <defs>
+                    <linearGradient id="topSkillsGradient" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#0f766e" />
+                      <stop offset="100%" stopColor="#34d399" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    horizontal={false}
+                    stroke="#e2e8f0"
+                    strokeDasharray="4 4"
+                  />
+                  <XAxis
+                    type="number"
+                    allowDecimals={false}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="habilidad"
+                    width={100}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#475569', fontSize: 11 }}
+                  />
+                  <Tooltip
+                    formatter={(value) => [value, 'Candidatos']}
+                    contentStyle={{
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
+                    }}
+                  />
+                  <Bar
+                    dataKey="total"
+                    name="Candidatos"
+                    fill="url(#topSkillsGradient)"
+                    radius={[0, 6, 6, 0]}
+                    maxBarSize={28}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </article>
       </div>
     </section>

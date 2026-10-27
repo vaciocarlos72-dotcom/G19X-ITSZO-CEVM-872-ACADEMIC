@@ -50,6 +50,7 @@ class CandidatoResponse(CandidatoCreate):
     """Representacion de un candidato devuelta por la API."""
 
     id: int
+    perfil_json: str | None = None
     postulaciones: list[PostulacionResponse] | None = None
     model_config = ConfigDict(from_attributes=True)
 

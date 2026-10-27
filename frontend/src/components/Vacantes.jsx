@@ -5,6 +5,7 @@ import {
   CheckCircle,
   Edit,
   LoaderCircle,
+  Quote,
   Trash2,
   Upload,
   UserPlus,
@@ -29,6 +30,21 @@ const clasesFuenteEvaluacion = (fuente) => {
     return 'rounded bg-slate-100 px-2 py-1 text-xs text-slate-600'
   }
   return ''
+}
+
+const parsePerfilJson = (perfilJson) => {
+  if (!perfilJson) return null
+  if (typeof perfilJson === 'object') return perfilJson
+  if (typeof perfilJson !== 'string') return null
+
+  try {
+    const perfil = JSON.parse(perfilJson)
+    return perfil && typeof perfil === 'object' && !Array.isArray(perfil)
+      ? perfil
+      : null
+  } catch {
+    return null
+  }
 }
 
 function Vacantes({ refreshTrigger }) {
@@ -564,11 +580,65 @@ function Vacantes({ refreshTrigger }) {
                       </p>
                     ) : (
                       <ul className="mt-2 space-y-2">
-                        {postulacionesParaRenderizar.map((postulacion) => (
-                          <li
-                            key={postulacion?.id}
-                            className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm"
-                          >
+                        {postulacionesParaRenderizar.map((postulacion) => {
+                          const perfil = parsePerfilJson(
+                            postulacion?.candidato?.perfil_json ??
+                              postulacion?.perfil_json,
+                          )
+                          const idiomas = Array.isArray(perfil?.idiomas)
+                            ? perfil.idiomas.filter(
+                                (idioma) =>
+                                  typeof idioma === 'string' && idioma.trim(),
+                              )
+                            : []
+
+                          return (
+                            <li
+                              key={postulacion?.id}
+                              className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm"
+                            >
+                              {perfil && (
+                                <div className="mb-4 space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-700">
+                                    <span>
+                                      Años de experiencia:{' '}
+                                      <strong className="font-bold text-slate-900">
+                                        {Number.isFinite(
+                                          perfil.anios_experiencia,
+                                        )
+                                          ? perfil.anios_experiencia
+                                          : 'No especificados'}
+                                      </strong>
+                                    </span>
+                                    {idiomas.length > 0 && (
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className="text-slate-500">
+                                          Idiomas:
+                                        </span>
+                                        {idiomas.map((idioma) => (
+                                          <span
+                                            key={idioma}
+                                            className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
+                                          >
+                                            {idioma}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {typeof perfil.resumen === 'string' &&
+                                    perfil.resumen.trim() && (
+                                      <blockquote className="flex gap-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+                                        <Quote
+                                          size={16}
+                                          className="mt-0.5 shrink-0 text-slate-400"
+                                          aria-hidden="true"
+                                        />
+                                        <span>{perfil.resumen}</span>
+                                      </blockquote>
+                                    )}
+                                </div>
+                              )}
                             <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
                               <div className="min-w-0">
                                 <p className="font-semibold text-slate-800">
@@ -725,8 +795,9 @@ function Vacantes({ refreshTrigger }) {
                                 </div>
                               )}
                             </div>
-                          </li>
-                        ))}
+                            </li>
+                          )
+                        })}
                       </ul>
                     )}
                   </div>

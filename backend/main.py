@@ -331,7 +331,16 @@ def receive_email_candidate(
 @app.get("/candidatos/", response_model=list[CandidatoResponse])
 def list_candidatos(db: Session = Depends(get_db)):
     """Devuelve todos los candidatos registrados."""
-    return db.scalars(select(models.Candidato)).all()
+    candidatos = db.scalars(
+        select(models.Candidato).options(joinedload(models.Candidato.curriculums))
+    ).unique().all()
+    return [
+        {
+            **CandidatoResponse.model_validate(candidato).model_dump(),
+            "perfil_json": _perfil_json_reciente(candidato),
+        }
+        for candidato in candidatos
+    ]
 
 
 @app.post(
@@ -397,6 +406,15 @@ def create_postulacion(
     return postulacion
 
 
+def _perfil_json_reciente(candidato: models.Candidato) -> str | None:
+    curriculum = max(
+        candidato.curriculums,
+        key=lambda item: item.fecha_carga,
+        default=None,
+    )
+    return curriculum.perfil_json if curriculum is not None else None
+
+
 @app.get("/vacantes/{vacante_id}/postulaciones")
 def list_vacante_postulaciones(
     vacante_id: int,
@@ -413,15 +431,23 @@ def list_vacante_postulaciones(
     postulaciones = db.scalars(
         select(models.Postulacion)
         .where(models.Postulacion.vacante_id == vacante_id)
-        .options(joinedload(models.Postulacion.candidato))
-    ).all()
+        .options(
+            joinedload(models.Postulacion.candidato).joinedload(
+                models.Candidato.curriculums
+            )
+        )
+    ).unique().all()
 
     return [
         {
             **PostulacionResponse.model_validate(postulacion).model_dump(),
-            "candidato": CandidatoResponse.model_validate(
-                postulacion.candidato
-            ).model_dump(exclude={"postulaciones"}),
+            "candidato": {
+                **CandidatoResponse.model_validate(
+                    postulacion.candidato
+                ).model_dump(exclude={"postulaciones"}),
+                "perfil_json": _perfil_json_reciente(postulacion.candidato),
+            },
+            "perfil_json": _perfil_json_reciente(postulacion.candidato),
         }
         for postulacion in postulaciones
     ]
