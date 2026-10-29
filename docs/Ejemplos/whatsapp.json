@@ -1,0 +1,30 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "changes": [
+        {
+          "value": {
+            "candidate_email": "mariana.demo@example.com",
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Mariana Torres"
+                },
+                "wa_id": "525500123456"
+              }
+            ],
+            "messages": [
+              {
+                "from": "525500123456",
+                "text": {
+                  "body": "Tengo experiencia en React, JavaScript y accesibilidad web."
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

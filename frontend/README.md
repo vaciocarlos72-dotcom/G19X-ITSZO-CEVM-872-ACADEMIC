@@ -19,8 +19,8 @@ candidatos.
 
 - Node.js y npm compatibles con la versión de Vite definida en
   `package.json`.
-- API FastAPI disponible en `http://127.0.0.1:8000`, o ajustar `baseURL` en
-  `src/api.js` para apuntar a otra dirección.
+- API FastAPI disponible. La URL base se toma de la variable de entorno
+  `VITE_API_URL`; si no se define, se usa `http://localhost:8000`.
 
 ## Instalación y desarrollo local
 
@@ -65,9 +65,10 @@ src/
 ## Integración con la API
 
 Las solicitudes se centralizan en `src/api.js`, que exporta el cliente Axios
-utilizado por los componentes. Por defecto, apunta al backend local en
-`http://127.0.0.1:8000`. Si el backend se ejecuta en otro host o puerto, actualiza
-esta base URL antes de iniciar Vite o generar el build.
+utilizado por los componentes. La URL base se configura mediante `VITE_API_URL`;
+cuando la variable no está definida, la aplicación utiliza
+`http://localhost:8000`. Define `VITE_API_URL` en el entorno de ejecución o de
+compilación si el backend está en otra dirección.
 
 La API interactiva de FastAPI suele estar disponible en
 `http://localhost:8000/docs`.

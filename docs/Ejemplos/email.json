@@ -1,0 +1,11 @@
+{
+  "event": "email.received",
+  "from": {
+    "name": "Mariana Torres",
+    "email": "mariana.demo@example.com"
+  },
+  "message": {
+    "subject": "Postulación - Desarrolladora React",
+    "text": "También cuento con experiencia en TypeScript y pruebas de interfaces."
+  }
+}

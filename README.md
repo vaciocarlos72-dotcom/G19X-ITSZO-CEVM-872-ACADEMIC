@@ -114,6 +114,9 @@ docker compose down --volumes
 | Documentación interactiva | http://localhost:8000/docs |
 | PostgreSQL | localhost:5432 |
 
+Para un recorrido guiado de la demostración, incluidos los ejemplos de webhook
+y la carga de CV desde la interfaz, consulta la [guía de demo](docs/DEMO.md).
+
 ## Cargar datos iniciales para la evaluación
 
 Después de iniciar los servicios, los evaluadores pueden cargar datos de
@@ -164,7 +167,11 @@ por sí solo.
 ```
 
 El backend normaliza nombre, email, teléfono, canal (`WhatsApp`) y texto del
-mensaje al modelo de candidatos.
+mensaje al modelo de candidatos. Los contactos entrantes se guardan en la tabla
+`ContactoCanal`, relacionada con el candidato. Al recibir un mensaje con un
+email que ya existe, se conserva el mismo candidato y se agrega un nuevo
+registro de contacto; así se pueden unificar canales como WhatsApp y Email para
+una misma persona.
 
 ### Correo electrónico
 
@@ -186,7 +193,9 @@ correo:
 ```
 
 El backend registra nombre, email, canal (`Email`) y el texto del mensaje como
-habilidades. Los webhooks son adaptadores académicos y no sustituyen la
+habilidades, además de guardar el contacto en `ContactoCanal`. Si el email
+corresponde a una persona ya registrada, se reutiliza el candidato en lugar de
+crear un duplicado. Los webhooks son adaptadores académicos y no sustituyen la
 validación de firma e idempotencia requerida para una integración real con
 proveedores externos.
 
@@ -216,8 +225,9 @@ para CV escaneados como imagen.
 ## Uso de IA
 
 La evaluación de candidatos encadena dos agentes con tareas diferenciadas. El
-modelo se configura con `GEMINI_MODEL` (por defecto, `gemini-1.5-flash`) y el
-backend se conecta mediante el SDK `google-genai` y `GEMINI_API_KEY`.
+modelo se configura con `GEMINI_MODEL`; el modelo vigente por omisión sigue
+siendo expresamente `gemini-1.5-flash`. El backend se conecta mediante el SDK
+`google-genai` y `GEMINI_API_KEY`.
 
 Durante el desarrollo se utilizó IA generativa como apoyo para diseñar los
 esquemas de los canales de recepción y redactar/refinar los prompts de los
@@ -240,6 +250,14 @@ los datos reconocibles en el texto y el evaluador usa el respaldo simulado para
 comparar habilidades del perfil con las de la vacante. La respuesta identifica
 la fuente de evaluación como `gemini` o `simulado`. El score es una señal de
 apoyo: no sustituye la revisión ni la decisión de una persona reclutadora.
+
+## Pruebas
+
+Desde la carpeta `backend`, ejecuta:
+
+```bash
+python -m pytest -q
+```
 
 ## Desarrollo manual
 
@@ -269,5 +287,6 @@ npm run dev
 ## Documentación adicional
 
 - [Arquitectura del backend](docs/backend_arquitectura.md)
+- [Guion de demostración](docs/DEMO.md)
 - [PRD del MVP](PRD_MVP.md)
 - [Guía del frontend](frontend/README.md)
