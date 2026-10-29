@@ -239,6 +239,7 @@ def test_evaluacion_encadena_perfil_json(
     evaluacion = client.post(f"/agente/evaluar/{postulacion_id}")
 
     assert evaluacion.status_code == 200
+    assert evaluacion.json()["fuente_evaluacion"] == "simulado"
     assert texto_recibido == ["CV con experiencia en Python"]
     assert perfil_evaluado == [
         (
@@ -295,12 +296,15 @@ def test_carga_cv_persiste_perfil_json(
     )
 
     assert response.status_code == 200
+    assert response.json()["fuente"] == "simulado"
     with client.app.state.test_session() as db:
         curriculum = db.query(models.CandidatoCV).one()
         assert curriculum.texto_extraido == "CV completo para pruebas"
         assert curriculum.perfil_json == json.dumps(
             perfil_esperado, ensure_ascii=False
         )
+        postulacion = db.query(models.Postulacion).one()
+        assert postulacion.fuente_evaluacion == "simulado"
 
     perfil_json_esperado = json.dumps(perfil_esperado, ensure_ascii=False)
     candidatos = client.get("/candidatos/").json()
@@ -331,4 +335,26 @@ def test_actualiza_esquema_existente_para_perfil_json(monkeypatch):
         for column in inspect(legacy_engine).get_columns("candidato_cvs")
     }
     assert "perfil_json" in columnas_cvs
+    legacy_engine.dispose()
+
+
+def test_actualiza_esquema_existente_para_fuente_evaluacion(monkeypatch):
+    legacy_engine = create_engine("sqlite+pysqlite:///:memory:")
+    with legacy_engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE TABLE postulaciones (id INTEGER PRIMARY KEY, "
+                "candidato_id INTEGER, vacante_id INTEGER)"
+            )
+        )
+    monkeypatch.setattr(main, "engine", legacy_engine)
+
+    main.ensure_postulacion_fuente_column()
+    main.ensure_postulacion_fuente_column()
+    columnas = {
+        column["name"]
+        for column in inspect(legacy_engine).get_columns("postulaciones")
+    }
+
+    assert "fuente_evaluacion" in columnas
     legacy_engine.dispose()

@@ -13,11 +13,12 @@ from fastapi import (
     Header,
     HTTPException,
     Query,
+    Response,
     UploadFile,
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
+from sqlalchemy import func, inspect, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
@@ -48,6 +49,28 @@ app.add_middleware(
 models.Base.metadata.create_all(bind=engine)
 ensure_cv_profile_column()
 MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024
+
+
+def ensure_postulacion_fuente_column() -> None:
+    """Añade la fuente de evaluación a bases existentes."""
+    inspector = inspect(engine)
+    if not inspector.has_table("postulaciones"):
+        return
+
+    columnas = {
+        column["name"] for column in inspector.get_columns("postulaciones")
+    }
+    if "fuente_evaluacion" not in columnas:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE postulaciones "
+                    "ADD COLUMN fuente_evaluacion VARCHAR(20)"
+                )
+            )
+
+
+ensure_postulacion_fuente_column()
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -241,10 +264,29 @@ def receive_candidate_webhook(
 def _registrar_candidato_omnicanal(
     candidato_data: CandidatoCreate,
     db: Session,
-) -> dict[str, int | str]:
-    candidato = models.Candidato(**candidato_data.model_dump(exclude_unset=True))
+) -> tuple[dict[str, int | str | bool], bool]:
+    email = candidato_data.email.strip().casefold()
+    candidato = db.scalar(
+        select(models.Candidato).where(
+            func.lower(models.Candidato.email) == email
+        )
+    )
+    existente = candidato is not None
     try:
-        db.add(candidato)
+        if candidato is None:
+            datos_candidato = candidato_data.model_dump(exclude_unset=True)
+            datos_candidato["email"] = email
+            candidato = models.Candidato(**datos_candidato)
+            db.add(candidato)
+            db.flush()
+
+        db.add(
+            models.ContactoCanal(
+                candidato_id=candidato.id,
+                canal=candidato_data.canal_origen,
+                mensaje=candidato_data.habilidades,
+            )
+        )
         db.commit()
         db.refresh(candidato)
     except SQLAlchemyError as exc:
@@ -254,12 +296,14 @@ def _registrar_candidato_omnicanal(
             detail="No se pudo registrar el candidato del canal.",
         ) from exc
 
+    if existente:
+        return {"existente": True}, True
     return {
         "mensaje": "Candidato registrado correctamente.",
         "id": candidato.id,
         "nombre": candidato.nombre,
         "canal_origen": candidato.canal_origen,
-    }
+    }, False
 
 
 @app.post(
@@ -269,6 +313,7 @@ def _registrar_candidato_omnicanal(
 )
 def receive_whatsapp_candidate(
     payload: WhatsAppWebhookPayload,
+    response: Response,
     _: None = Depends(validar_api_key_webhook),
     db: Session = Depends(get_db),
 ):
@@ -298,7 +343,9 @@ def receive_whatsapp_candidate(
         canal_origen="WhatsApp",
         habilidades=message.text.body.strip() or None,
     )
-    return _registrar_candidato_omnicanal(candidato_data, db)
+    resultado, existente = _registrar_candidato_omnicanal(candidato_data, db)
+    response.status_code = status.HTTP_200_OK if existente else status.HTTP_201_CREATED
+    return resultado
 
 
 @app.post(
@@ -308,6 +355,7 @@ def receive_whatsapp_candidate(
 )
 def receive_email_candidate(
     payload: EmailWebhookPayload,
+    response: Response,
     _: None = Depends(validar_api_key_webhook),
     db: Session = Depends(get_db),
 ):
@@ -324,7 +372,9 @@ def receive_email_candidate(
         canal_origen="Email",
         habilidades=payload.message.text.strip() or None,
     )
-    return _registrar_candidato_omnicanal(candidato_data, db)
+    resultado, existente = _registrar_candidato_omnicanal(candidato_data, db)
+    response.status_code = status.HTTP_200_OK if existente else status.HTTP_201_CREATED
+    return resultado
 
 
 @app.get("/api/v1/candidatos", response_model=list[CandidatoResponse])
@@ -487,6 +537,7 @@ def evaluar_postulacion(postulacion_id: int, db: Session = Depends(get_db)):
     resultado_agente = evaluar_candidato(perfil_json, vacante.descripcion)
     postulacion.score_compatibilidad = resultado_agente["score"]
     postulacion.justificacion_agente = resultado_agente["justificacion"]
+    postulacion.fuente_evaluacion = resultado_agente["fuente"]
 
     try:
         db.commit()
@@ -573,6 +624,7 @@ async def cargar_cv_candidato(
     resultado = evaluar_candidato(perfil_json, vacante.descripcion)
     postulacion.score_compatibilidad = resultado["score"]
     postulacion.justificacion_agente = resultado["justificacion"]
+    postulacion.fuente_evaluacion = resultado["fuente"]
 
     try:
         db.commit()

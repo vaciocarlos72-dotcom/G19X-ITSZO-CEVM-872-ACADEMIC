@@ -27,6 +27,9 @@ class Candidato(Base):
     curriculums: Mapped[list["CandidatoCV"]] = relationship(
         back_populates="candidato", cascade="all, delete-orphan"
     )
+    contactos_canales: Mapped[list["ContactoCanal"]] = relationship(
+        back_populates="candidato", cascade="all, delete-orphan"
+    )
 
 
 class CandidatoCV(Base):
@@ -46,6 +49,24 @@ class CandidatoCV(Base):
     )
 
     candidato: Mapped["Candidato"] = relationship(back_populates="curriculums")
+
+
+class ContactoCanal(Base):
+    """Almacena mensajes recibidos para un candidato por cada canal."""
+
+    __tablename__ = "contactos_canales"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    candidato_id: Mapped[int] = mapped_column(
+        ForeignKey("candidatos.id"), nullable=False
+    )
+    canal: Mapped[str] = mapped_column(String(50), nullable=False)
+    mensaje: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fecha: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+    )
+
+    candidato: Mapped["Candidato"] = relationship(back_populates="contactos_canales")
 
 
 class Vacante(Base):
@@ -80,6 +101,7 @@ class Postulacion(Base):
     justificacion_agente: Mapped[str | None] = mapped_column(
         String(255), nullable=True, default=None
     )
+    fuente_evaluacion: Mapped[str | None] = mapped_column(String(20), nullable=True)
     candidato_id: Mapped[int] = mapped_column(
         ForeignKey("candidatos.id"), nullable=False
     )

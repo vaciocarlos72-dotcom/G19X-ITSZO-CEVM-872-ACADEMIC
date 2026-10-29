@@ -26,6 +26,7 @@ class PostulacionResponse(PostulacionCreate):
     fecha_postulacion: datetime
     score_compatibilidad: int | None = None
     justificacion_agente: str | None = None
+    fuente_evaluacion: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
