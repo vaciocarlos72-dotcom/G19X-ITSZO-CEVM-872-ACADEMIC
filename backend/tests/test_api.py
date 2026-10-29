@@ -125,6 +125,12 @@ def test_whatsapp_y_email_unifican_contactos_en_un_candidato():
                 "Email",
             }
             assert len(contactos) == 2
+        candidato_api = next(
+            candidato
+            for candidato in client.get("/candidatos/").json()
+            if candidato["email"] == email
+        )
+        assert set(candidato_api["canales_contacto"]) == {"WhatsApp", "Email"}
     finally:
         with main.SessionLocal() as db:
             candidato = (

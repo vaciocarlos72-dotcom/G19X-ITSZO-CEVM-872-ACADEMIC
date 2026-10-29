@@ -42,6 +42,21 @@ const parsePerfilJson = (perfilJson) => {
   }
 }
 
+const canalesDeCandidato = (candidato) => {
+  const canalesGuardados = Array.isArray(candidato?.canales_contacto)
+    ? candidato.canales_contacto
+    : []
+  const canales =
+    canalesGuardados.length > 0
+      ? canalesGuardados
+      : [candidato?.canal_origen]
+  return [
+    ...new Set(
+      canales.filter((canal) => typeof canal === 'string' && canal.trim()),
+    ),
+  ]
+}
+
 const habilidadesDeCandidato = (candidato) => {
   const perfil = parsePerfilJson(candidato?.perfil_json)
   if (Array.isArray(perfil?.habilidades)) {
@@ -265,6 +280,7 @@ function Candidatos({ refreshTrigger }) {
     (candidato) => candidato.estadoVista !== 'Descartado',
   ).length
   const habilidadesPerfilAbierto = habilidadesDeCandidato(perfilAbierto)
+  const canalesPerfilAbierto = canalesDeCandidato(perfilAbierto)
 
   return (
     <section className="space-y-5 pb-8">
@@ -476,9 +492,9 @@ function Candidatos({ refreshTrigger }) {
               <div className="flex items-start gap-3">
                 <Radio size={17} className="mt-0.5 text-indigo-500" aria-hidden="true" />
                 <div>
-                  <dt className="font-medium text-slate-500">Canal de origen</dt>
+                  <dt className="font-medium text-slate-500">Llegó por</dt>
                   <dd className="mt-1 text-slate-800">
-                    {perfilAbierto.canal_origen || 'No especificado'}
+                    {canalesPerfilAbierto.join(', ') || 'No especificado'}
                   </dd>
                 </div>
               </div>
@@ -561,6 +577,9 @@ function FragmentRow({
               </p>
               <p className="truncate text-xs text-slate-500">
                 {candidato.email}
+              </p>
+              <p className="mt-1 truncate text-xs text-slate-500">
+                Llegó por: {canalesDeCandidato(candidato).join(', ') || 'No especificado'}
               </p>
             </div>
           </div>

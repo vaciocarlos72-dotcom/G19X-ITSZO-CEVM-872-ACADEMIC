@@ -382,12 +382,20 @@ def receive_email_candidate(
 def list_candidatos(db: Session = Depends(get_db)):
     """Devuelve todos los candidatos registrados."""
     candidatos = db.scalars(
-        select(models.Candidato).options(joinedload(models.Candidato.curriculums))
+        select(models.Candidato).options(
+            joinedload(models.Candidato.curriculums),
+            joinedload(models.Candidato.contactos_canales),
+        )
     ).unique().all()
     return [
         {
             **CandidatoResponse.model_validate(candidato).model_dump(),
             "perfil_json": _perfil_json_reciente(candidato),
+            "canales_contacto": list(
+                dict.fromkeys(
+                    contacto.canal for contacto in candidato.contactos_canales
+                )
+            ),
         }
         for candidato in candidatos
     ]

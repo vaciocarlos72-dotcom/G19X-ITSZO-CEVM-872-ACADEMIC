@@ -130,6 +130,8 @@ function Dashboard() {
     const conteoPorCanal = new Map()
     const conteoHabilidades = new Map()
     const experiencias = []
+    let evaluacionesGemini = 0
+    let evaluacionesRespaldo = 0
 
     candidatos.filter(Boolean).forEach((candidato) => {
       const canal = normalizarCanal(candidato.canal_origen)
@@ -161,6 +163,17 @@ function Dashboard() {
       ) {
         experiencias.push(perfil.anios_experiencia)
       }
+
+      const postulaciones = Array.isArray(candidato.postulaciones)
+        ? candidato.postulaciones
+        : []
+      postulaciones.forEach((postulacion) => {
+        if (postulacion?.fuente_evaluacion === 'gemini') {
+          evaluacionesGemini += 1
+        } else if (postulacion?.fuente_evaluacion === 'simulado') {
+          evaluacionesRespaldo += 1
+        }
+      })
     })
     const distribucion = [...conteoPorCanal.entries()]
       .map(([name, value]) => ({
@@ -220,6 +233,8 @@ function Dashboard() {
       canalPrincipal:
         canalPrincipal?.name || 'Sin datos',
       vacantesActivas,
+      evaluacionesGemini,
+      evaluacionesRespaldo,
     }
   }, [candidatos, vacantes])
 
@@ -273,6 +288,13 @@ function Dashboard() {
       icono: Brain,
       iconoClase: 'bg-amber-50 text-amber-600',
     },
+    {
+      etiqueta: 'Gemini vs respaldo',
+      valor: `${resumen.evaluacionesGemini} / ${resumen.evaluacionesRespaldo}`,
+      detalle: 'Evaluadas por Gemini / Por el respaldo',
+      icono: Brain,
+      iconoClase: 'bg-fuchsia-50 text-fuchsia-600',
+    },
   ]
 
   if (loading) {
@@ -310,7 +332,7 @@ function Dashboard() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {metricas.map(({ etiqueta, valor, detalle, icono: Icon, iconoClase }) => (
           <article
             key={etiqueta}

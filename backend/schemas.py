@@ -52,6 +52,7 @@ class CandidatoResponse(CandidatoCreate):
 
     id: int
     perfil_json: str | None = None
+    canales_contacto: list[str] = Field(default_factory=list)
     postulaciones: list[PostulacionResponse] | None = None
     model_config = ConfigDict(from_attributes=True)
 
