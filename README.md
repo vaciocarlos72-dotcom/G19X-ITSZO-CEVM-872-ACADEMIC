@@ -258,6 +258,7 @@ apoyo: no sustituye la revisión ni la decisión de una persona reclutadora.
 Desde la carpeta `backend`, ejecuta:
 
 ```bash
+pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 

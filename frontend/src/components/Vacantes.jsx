@@ -581,6 +581,9 @@ function Vacantes({ refreshTrigger }) {
                     ) : (
                       <ul className="mt-2 space-y-2">
                         {postulacionesParaRenderizar.map((postulacion) => {
+                          const fuente =
+                            postulacion?.fuente_evaluacion ??
+                            postulacion?.fuente
                           const perfil = parsePerfilJson(
                             postulacion?.candidato?.perfil_json ??
                               postulacion?.perfil_json,
@@ -651,9 +654,9 @@ function Vacantes({ refreshTrigger }) {
                                   {postulacion?.justificacion_agente ||
                                     'Aún no evaluada.'}
                                 </p>
-                                {etiquetaFuenteEvaluacion(postulacion?.fuente) && (
-                                  <span className={clasesFuenteEvaluacion(postulacion?.fuente)}>
-                                    {etiquetaFuenteEvaluacion(postulacion?.fuente)}
+                                {etiquetaFuenteEvaluacion(fuente) && (
+                                  <span className={clasesFuenteEvaluacion(fuente)}>
+                                    {etiquetaFuenteEvaluacion(fuente)}
                                   </span>
                                 )}
                               </div>

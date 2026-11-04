@@ -86,8 +86,8 @@ En Windows también puedes usar `curl.exe` en lugar de `curl`.
 
 1. Abre <http://localhost:5173> y entra a **Vacantes**.
 2. Expande **Desarrollador/a React** y localiza la postulación de prueba.
-3. En **Evaluar CV con el agente**, selecciona un archivo PDF con texto
-   seleccionable y pulsa **Subir y evaluar CV**.
+3. En **Evaluar CV con el agente**, adjunta el archivo
+   `docs/ejemplos/cv_ejemplo.pdf` y pulsa **Subir y evaluar CV**.
 4. Espera el resultado. Si `GEMINI_API_KEY` está configurada y Gemini responde,
    la fuente será Gemini. Si no hay clave o el proveedor falla, se utilizará el
    respaldo simulado.
@@ -98,7 +98,12 @@ En Windows también puedes usar `curl.exe` en lugar de `curl`.
 El PDF debe contener texto extraíble; los CV escaneados como imagen no se
 procesan porque el MVP no incluye OCR.
 
-## 5. Detener los servicios
+## 5. Verificar los canales unificados
+
+Abre **Candidatos**. Debe haber un solo registro de Mariana Torres y su perfil
+debe decir **Llegó por: WhatsApp, Email**.
+
+## 6. Detener los servicios
 
 ```powershell
 docker compose down
