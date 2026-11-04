@@ -4,8 +4,8 @@ PluriOne es un MVP académico para apoyar procesos de reclutamiento. Permite
 administrar vacantes, registrar candidatos desde distintos canales, evaluar CV
 en PDF con IA y consultar indicadores en un Dashboard analítico.
 
-El análisis semántico de los CV utiliza **Google Gemini 1.5 Flash**
-(`gemini-1.5-flash`) a través del SDK oficial `google-genai`. Si falta la clave
+El análisis semántico de los CV utiliza **Google Gemini 3.8 Flash**
+(`gemini-3.8-flash`) a través del SDK oficial `google-genai`. Si falta la clave
 de Gemini o la API no responde correctamente, el backend usa un evaluador
 simulado de respaldo basado en coincidencias de palabras clave. El score es
 orientativo; la decisión final corresponde a una persona reclutadora.
@@ -79,7 +79,7 @@ Edita `backend/.env` y configura valores propios:
 DATABASE_URL=postgresql+psycopg://postgres:tu-clave@localhost:5432/plurione_db
 WEBHOOK_API_KEY=define-una-clave-aleatoria-larga
 GEMINI_API_KEY=tu-clave-de-google-gemini
-GEMINI_MODEL=gemini-1.5-flash
+GEMINI_MODEL=gemini-3.8-flash
 ```
 
 La URL de PostgreSQL debe usar el dialecto del driver psycopg v3 instalado:
@@ -225,9 +225,11 @@ para CV escaneados como imagen.
 ## Uso de IA
 
 La evaluación de candidatos encadena dos agentes con tareas diferenciadas. El
-modelo se configura con `GEMINI_MODEL`; el modelo vigente por omisión sigue
-siendo expresamente `gemini-1.5-flash`. El backend se conecta mediante el SDK
-`google-genai` y `GEMINI_API_KEY`.
+modelo se configura con `GEMINI_MODEL`; el modelo vigente por omisión es
+`gemini-3.8-flash`. El backend se conecta mediante el SDK `google-genai` y
+`GEMINI_API_KEY`.
+
+Se confirmó la vigencia y se implementó el modelo `gemini-3.8-flash` de Google AI Studio.
 
 Durante el desarrollo se utilizó IA generativa como apoyo para diseñar los
 esquemas de los canales de recepción y redactar/refinar los prompts de los

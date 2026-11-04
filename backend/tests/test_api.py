@@ -54,6 +54,95 @@ def test_evaluador_simulado_retorna_score_100_y_fuente():
     assert resultado["fuente"] == "simulado"
 
 
+def test_evaluacion_persistida_muestra_fuente_simulada_en_postulaciones(
+    monkeypatch,
+):
+    client = TestClient(main.app)
+    identificador = uuid4().hex
+    email = f"evaluacion-{identificador}@example.com"
+    candidato_id = None
+    vacante_id = None
+
+    monkeypatch.setattr(
+        main,
+        "extraer_perfil",
+        lambda texto: {
+            "habilidades": ["Python"],
+            "anios_experiencia": 2,
+            "idiomas": [],
+            "resumen": texto,
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "evaluar_candidato",
+        lambda perfil_json, descripcion: {
+            "score": 85,
+            "justificacion": "Perfil compatible para la prueba.",
+            "fuente": "simulado",
+        },
+    )
+
+    try:
+        candidato_response = client.post(
+            "/candidatos/",
+            json={
+                "nombre": "Candidato de prueba",
+                "email": email,
+                "canal_origen": "Prueba",
+                "habilidades": "Python",
+            },
+        )
+        assert candidato_response.status_code == 201
+        candidato_id = candidato_response.json()["id"]
+
+        vacante_response = client.post(
+            "/vacantes/",
+            json={
+                "titulo": f"Vacante de prueba {identificador}",
+                "descripcion": "Se requiere Python",
+                "estado": "Abierta",
+            },
+        )
+        assert vacante_response.status_code == 201
+        vacante_id = vacante_response.json()["id"]
+
+        postulacion_response = client.post(
+            "/postulaciones/",
+            json={"candidato_id": candidato_id, "vacante_id": vacante_id},
+        )
+        assert postulacion_response.status_code == 201
+        postulacion_id = postulacion_response.json()["id"]
+
+        evaluacion_response = client.post(
+            f"/agente/evaluar/{postulacion_id}"
+        )
+        assert evaluacion_response.status_code == 200
+        assert evaluacion_response.json()["fuente_evaluacion"] == "simulado"
+
+        postulaciones_response = client.get(
+            f"/vacantes/{vacante_id}/postulaciones"
+        )
+        assert postulaciones_response.status_code == 200
+        postulacion_evaluada = next(
+            postulacion
+            for postulacion in postulaciones_response.json()
+            if postulacion["id"] == postulacion_id
+        )
+        assert postulacion_evaluada["fuente_evaluacion"] == "simulado"
+    finally:
+        with main.SessionLocal() as db:
+            if candidato_id is not None:
+                candidato = db.get(models.Candidato, candidato_id)
+                if candidato is not None:
+                    db.delete(candidato)
+            if vacante_id is not None:
+                vacante = db.get(models.Vacante, vacante_id)
+                if vacante is not None:
+                    db.delete(vacante)
+            db.commit()
+
+
 def test_whatsapp_y_email_unifican_contactos_en_un_candidato():
     email = f"contactos-{uuid4().hex}@example.com"
     client = TestClient(main.app)

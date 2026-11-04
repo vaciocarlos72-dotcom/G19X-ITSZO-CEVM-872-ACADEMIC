@@ -156,7 +156,7 @@ def test_evaluador_devuelve_fuente_simulada(client: TestClient, monkeypatch):
 def test_extractor_devuelve_perfil_estructurado(monkeypatch):
     class FakeModels:
         def generate_content(self, **kwargs):
-            assert kwargs["model"] == "gemini-1.5-flash"
+            assert kwargs["model"] == "gemini-3.8-flash"
             assert kwargs["config"]["response_mime_type"] == "application/json"
             assert "CV completo de prueba" in kwargs["contents"]
 
@@ -175,7 +175,7 @@ def test_extractor_devuelve_perfil_estructurado(monkeypatch):
             assert api_key == "test-gemini-key"
 
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
-    monkeypatch.setenv("GEMINI_MODEL", "gemini-1.5-flash")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-3.8-flash")
     monkeypatch.setattr(ia_agent.genai, "Client", FakeClient)
 
     perfil = ia_agent.extraer_perfil("CV completo de prueba")

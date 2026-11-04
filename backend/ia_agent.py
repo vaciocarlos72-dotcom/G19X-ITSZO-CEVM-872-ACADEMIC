@@ -142,7 +142,7 @@ def _solicitar_json_gemini(prompt: str) -> dict[str, Any]:
 
         try:
             respuesta = cliente.models.generate_content(
-                model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+                model=os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
                 contents=prompt,
                 config={
                     "response_mime_type": "application/json",

@@ -216,8 +216,8 @@ Flujo:
    original extraído continúa disponible en `CandidatoCV.texto_extraido`.
 8. `ia_agent.evaluar_candidato` recibe `perfil_json` y la descripción de la
    vacante, sin volver a incluir el CV completo en el prompt. El agente
-   evaluador solicita una comparación semántica a **Gemini 1.5 Flash**
-   (`gemini-1.5-flash`). El resultado es JSON con score entero de `0` a `100`
+   evaluador solicita una comparación semántica a **Gemini 3.8 Flash**
+   (`gemini-3.8-flash`). El resultado es JSON con score entero de `0` a `100`
    y una justificación breve.
 9. Si Gemini no está configurado, falla o devuelve datos inválidos, el extractor
    construye un perfil local y/o el evaluador usa `evaluar_candidato_simulado`,

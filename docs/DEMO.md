@@ -42,13 +42,24 @@ header `X-API-Key` con el valor configurado en `WEBHOOK_API_KEY`.
 
 ### PowerShell
 
+Los siguientes comandos se pueden copiar directamente desde la raíz del
+repositorio. El encabezado usa la clave de ejemplo `clave-de-prueba`.
+
 ```powershell
 $headers = @{ "X-API-Key" = "clave-de-prueba" }
-$whatsapp = Get-Content -Raw docs/ejemplos/whatsapp.json
-Invoke-RestMethod -Uri http://localhost:8000/api/v1/canales/whatsapp -Method Post -Headers $headers -ContentType "application/json" -Body $whatsapp
+Invoke-RestMethod `
+  -Uri "http://localhost:8000/api/v1/canales/whatsapp" `
+  -Method Post `
+  -Headers $headers `
+  -ContentType "application/json" `
+  -Body (Get-Content -Raw "docs/ejemplos/whatsapp.json")
 
-$email = Get-Content -Raw docs/ejemplos/email.json
-Invoke-RestMethod -Uri http://localhost:8000/api/v1/canales/email -Method Post -Headers $headers -ContentType "application/json" -Body $email
+Invoke-RestMethod `
+  -Uri "http://localhost:8000/api/v1/canales/email" `
+  -Method Post `
+  -Headers $headers `
+  -ContentType "application/json" `
+  -Body (Get-Content -Raw "docs/ejemplos/email.json")
 ```
 
 La primera solicitud crea el candidato. La siguiente debe responder
@@ -58,12 +69,12 @@ contacto Email al candidato existente.
 ### curl
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/canales/whatsapp \
+curl -X POST "http://localhost:8000/api/v1/canales/whatsapp" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: clave-de-prueba" \
   --data-binary "@docs/ejemplos/whatsapp.json"
 
-curl -X POST http://localhost:8000/api/v1/canales/email \
+curl -X POST "http://localhost:8000/api/v1/canales/email" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: clave-de-prueba" \
   --data-binary "@docs/ejemplos/email.json"
