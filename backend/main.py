@@ -1,6 +1,7 @@
 """Aplicacion inicial del backend de PluriOne."""
 
 import json
+import logging
 import os
 import secrets
 from collections.abc import Generator
@@ -18,12 +19,22 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func, inspect, select, text
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
-from database import SessionLocal, engine, ensure_cv_profile_column
-from ia_agent import evaluar_candidato, extraer_perfil, extraer_texto_pdf
+from database import (
+    SessionLocal,
+    engine,
+    ensure_cv_profile_column,
+    ensure_postulacion_fuente_column,
+)
+from ia_agent import (
+    evaluar_candidato,
+    extraer_perfil,
+    extraer_texto_pdf,
+    sugerir_vacante,
+)
 import models
 from schemas import (
     CandidatoCreate,
@@ -39,6 +50,7 @@ from schemas import (
 
 
 app = FastAPI()
+logger = logging.getLogger(__name__)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -48,29 +60,8 @@ app.add_middleware(
 )
 models.Base.metadata.create_all(bind=engine)
 ensure_cv_profile_column()
-MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024
-
-
-def ensure_postulacion_fuente_column() -> None:
-    """Añade la fuente de evaluación a bases existentes."""
-    inspector = inspect(engine)
-    if not inspector.has_table("postulaciones"):
-        return
-
-    columnas = {
-        column["name"] for column in inspector.get_columns("postulaciones")
-    }
-    if "fuente_evaluacion" not in columnas:
-        with engine.begin() as connection:
-            connection.execute(
-                text(
-                    "ALTER TABLE postulaciones "
-                    "ADD COLUMN fuente_evaluacion VARCHAR(20)"
-                )
-            )
-
-
 ensure_postulacion_fuente_column()
+MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -154,6 +145,14 @@ def create_candidato(
     candidato = models.Candidato(**candidato_data.model_dump(exclude_unset=True))
     try:
         db.add(candidato)
+        db.flush()
+        db.add(
+            models.ContactoCanal(
+                candidato_id=candidato.id,
+                canal=candidato.canal_origen,
+                mensaje=candidato.habilidades,
+            )
+        )
         db.commit()
         db.refresh(candidato)
     except SQLAlchemyError as exc:
@@ -209,6 +208,13 @@ async def create_candidate_with_cv(
     try:
         db.add(candidato)
         db.flush()
+        db.add(
+            models.ContactoCanal(
+                candidato_id=candidato.id,
+                canal=candidato.canal_origen,
+                mensaje=candidato.habilidades or texto_cv,
+            )
+        )
         if texto_cv is not None and nombre_archivo is not None:
             db.add(
                 models.CandidatoCV(
@@ -239,31 +245,22 @@ async def create_candidate_with_cv(
 @app.post("/api/v1/webhooks/candidatos", tags=["Integraciones Omnicanal"])
 def receive_candidate_webhook(
     candidato_data: CandidatoCreate,
+    response: Response,
     _: None = Depends(validar_api_key_webhook),
     db: Session = Depends(get_db),
 ):
     """Recibe candidatos enviados automáticamente por fuentes externas."""
-    candidato = models.Candidato(**candidato_data.model_dump(exclude_unset=True))
-    try:
-        db.add(candidato)
-        db.commit()
-        db.refresh(candidato)
-    except SQLAlchemyError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No se pudo recibir el candidato vía Webhook.",
-        ) from exc
-
-    return {
-        "mensaje": "Candidato recibido vía Webhook exitosamente",
-        "id": candidato.id,
-    }
+    resultado, existente = _registrar_candidato_omnicanal(candidato_data, db)
+    response.status_code = status.HTTP_200_OK if existente else status.HTTP_201_CREATED
+    return resultado
 
 
 def _registrar_candidato_omnicanal(
     candidato_data: CandidatoCreate,
     db: Session,
+    *,
+    mensaje_contacto: str | None = None,
+    vacante_sugerida_id: int | None = None,
 ) -> tuple[dict[str, int | str | bool], bool]:
     email = candidato_data.email.strip().casefold()
     candidato = db.scalar(
@@ -284,9 +281,35 @@ def _registrar_candidato_omnicanal(
             models.ContactoCanal(
                 candidato_id=candidato.id,
                 canal=candidato_data.canal_origen,
-                mensaje=candidato_data.habilidades,
+                mensaje=(
+                    mensaje_contacto
+                    if mensaje_contacto is not None
+                    else candidato_data.habilidades
+                ),
             )
         )
+        if vacante_sugerida_id is not None:
+            vacante = db.get(models.Vacante, vacante_sugerida_id)
+            if vacante is None:
+                logger.warning(
+                    "La vacante sugerida %s ya no existe; no se creó la postulación.",
+                    vacante_sugerida_id,
+                )
+            else:
+                postulacion_existente = db.scalar(
+                    select(models.Postulacion).where(
+                        models.Postulacion.candidato_id == candidato.id,
+                        models.Postulacion.vacante_id == vacante.id,
+                    )
+                )
+                if postulacion_existente is None:
+                    db.add(
+                        models.Postulacion(
+                            candidato_id=candidato.id,
+                            vacante_id=vacante.id,
+                            estado="En revisión",
+                        )
+                    )
         db.commit()
         db.refresh(candidato)
     except SQLAlchemyError as exc:
@@ -366,13 +389,33 @@ def receive_email_candidate(
             detail="El evento de correo no es compatible.",
         )
 
+    asunto = payload.message.subject.strip()
+    mensaje = payload.message.text.strip()
+    mensaje_completo = f"Asunto: {asunto}\n{mensaje}".strip()
+    vacantes_disponibles = db.scalars(select(models.Vacante)).all()
+    sugerencia = sugerir_vacante(
+        mensaje_completo,
+        [
+            {
+                "id": vacante.id,
+                "titulo": vacante.titulo,
+                "descripcion": vacante.descripcion or "",
+            }
+            for vacante in vacantes_disponibles
+        ],
+    )
     candidato_data = CandidatoCreate(
         nombre=payload.sender.name.strip(),
         email=payload.sender.email.strip(),
         canal_origen="Email",
-        habilidades=payload.message.text.strip() or None,
+        habilidades=mensaje or None,
     )
-    resultado, existente = _registrar_candidato_omnicanal(candidato_data, db)
+    resultado, existente = _registrar_candidato_omnicanal(
+        candidato_data,
+        db,
+        mensaje_contacto=mensaje_completo,
+        vacante_sugerida_id=sugerencia["vacante_id"],
+    )
     response.status_code = status.HTTP_200_OK if existente else status.HTTP_201_CREATED
     return resultado
 

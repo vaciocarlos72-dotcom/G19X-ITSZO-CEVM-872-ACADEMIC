@@ -188,6 +188,42 @@ def test_extractor_devuelve_perfil_estructurado(monkeypatch):
     }
 
 
+def test_sugerir_vacante_gemini_valida_id_y_confianza(monkeypatch):
+    vacantes = [
+        {"id": 7, "titulo": "Desarrollador React", "descripcion": "React"},
+    ]
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
+    monkeypatch.setattr(
+        ia_agent,
+        "_solicitar_json_gemini",
+        lambda prompt: {
+            "vacante_id": 7,
+            "confianza": 93,
+        },
+    )
+
+    resultado = ia_agent.sugerir_vacante(
+        "Me interesa Desarrollador React",
+        vacantes,
+    )
+
+    assert resultado == {"vacante_id": 7, "confianza": 93}
+
+
+def test_sugerir_vacante_simulado_asocia_titulo_mencionado(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+
+    resultado = ia_agent.sugerir_vacante(
+        "Me postulo para Ingeniero de Datos",
+        [
+            {"id": 9, "titulo": "Ingeniero de Datos", "descripcion": "Python"},
+            {"id": 10, "titulo": "Desarrollador React", "descripcion": "React"},
+        ],
+    )
+
+    assert resultado == {"vacante_id": 9, "confianza": 100}
+
+
 def test_evaluacion_encadena_perfil_json(
     client: TestClient, monkeypatch
 ):
@@ -347,10 +383,10 @@ def test_actualiza_esquema_existente_para_fuente_evaluacion(monkeypatch):
                 "candidato_id INTEGER, vacante_id INTEGER)"
             )
         )
-    monkeypatch.setattr(main, "engine", legacy_engine)
+    monkeypatch.setattr(database, "engine", legacy_engine)
 
-    main.ensure_postulacion_fuente_column()
-    main.ensure_postulacion_fuente_column()
+    database.ensure_postulacion_fuente_column()
+    database.ensure_postulacion_fuente_column()
     columnas = {
         column["name"]
         for column in inspect(legacy_engine).get_columns("postulaciones")

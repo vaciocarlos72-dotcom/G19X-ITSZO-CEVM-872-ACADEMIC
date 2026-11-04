@@ -36,3 +36,22 @@ def ensure_cv_profile_column() -> None:
                 connection.execute(
                     text("ALTER TABLE candidato_cvs ADD COLUMN perfil_json TEXT")
                 )
+
+
+def ensure_postulacion_fuente_column() -> None:
+    """Añade la fuente de evaluación a bases existentes."""
+    inspector = inspect(engine)
+    if not inspector.has_table("postulaciones"):
+        return
+
+    columnas = {
+        column["name"] for column in inspector.get_columns("postulaciones")
+    }
+    if "fuente_evaluacion" not in columnas:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE postulaciones "
+                    "ADD COLUMN fuente_evaluacion VARCHAR(20)"
+                )
+            )

@@ -134,8 +134,13 @@ function Dashboard() {
     let evaluacionesRespaldo = 0
 
     candidatos.filter(Boolean).forEach((candidato) => {
-      const canal = normalizarCanal(candidato.canal_origen)
-      conteoPorCanal.set(canal, (conteoPorCanal.get(canal) || 0) + 1)
+      const canales = Array.isArray(candidato.canales_contacto)
+        && candidato.canales_contacto.length > 0
+        ? candidato.canales_contacto
+        : [candidato.canal_origen]
+      new Set(canales.map(normalizarCanal)).forEach((canal) => {
+        conteoPorCanal.set(canal, (conteoPorCanal.get(canal) || 0) + 1)
+      })
 
       const perfil = parsePerfilJson(candidato.perfil_json)
       const habilidades = Array.isArray(perfil?.habilidades)

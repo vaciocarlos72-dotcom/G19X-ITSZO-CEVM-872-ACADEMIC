@@ -6,13 +6,19 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
 import models
-from database import SessionLocal, engine, ensure_cv_profile_column
+from database import (
+    SessionLocal,
+    engine,
+    ensure_cv_profile_column,
+    ensure_postulacion_fuente_column,
+)
 
 
 def seed_database() -> None:
     """Inserta vacantes, candidatos y postulaciones iniciales una sola vez."""
     models.Base.metadata.create_all(bind=engine)
     ensure_cv_profile_column()
+    ensure_postulacion_fuente_column()
     db = SessionLocal()
 
     try:
@@ -79,6 +85,20 @@ def seed_database() -> None:
                     candidato_id=candidato_datos.id,
                     vacante_id=vacante_datos.id,
                     estado="En revisión",
+                ),
+            ]
+        )
+        db.add_all(
+            [
+                models.ContactoCanal(
+                    candidato_id=candidato_react.id,
+                    canal=candidato_react.canal_origen,
+                    mensaje=candidato_react.habilidades,
+                ),
+                models.ContactoCanal(
+                    candidato_id=candidato_datos.id,
+                    canal=candidato_datos.canal_origen,
+                    mensaje=candidato_datos.habilidades,
                 ),
             ]
         )
