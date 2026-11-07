@@ -49,8 +49,9 @@ from schemas import (
 )
 
 
-app = FastAPI()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -156,6 +157,7 @@ def create_candidato(
         db.commit()
         db.refresh(candidato)
     except SQLAlchemyError as exc:
+        logger.error(f"Error al guardar: {exc}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -227,6 +229,7 @@ async def create_candidate_with_cv(
         db.commit()
         db.refresh(candidato)
     except SQLAlchemyError as exc:
+        logger.error(f"Error al guardar: {exc}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -313,6 +316,7 @@ def _registrar_candidato_omnicanal(
         db.commit()
         db.refresh(candidato)
     except SQLAlchemyError as exc:
+        logger.error(f"Error al guardar: {exc}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -462,6 +466,7 @@ def create_vacante(
         db.commit()
         db.refresh(vacante)
     except SQLAlchemyError as exc:
+        logger.error(f"Error al guardar: {exc}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -501,6 +506,7 @@ def create_postulacion(
         db.commit()
         db.refresh(postulacion)
     except SQLAlchemyError as exc:
+        logger.error(f"Error al guardar: {exc}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -596,6 +602,7 @@ def evaluar_postulacion(postulacion_id: int, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(postulacion)
     except SQLAlchemyError as exc:
+        logger.error(f"Error al guardar: {exc}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -683,6 +690,7 @@ async def cargar_cv_candidato(
         db.commit()
         db.refresh(postulacion)
     except SQLAlchemyError as exc:
+        logger.error(f"Error al guardar: {exc}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -711,6 +719,7 @@ def delete_vacante(vacante_id: int, db: Session = Depends(get_db)):
         db.delete(vacante)
         db.commit()
     except SQLAlchemyError as exc:
+        logger.error(f"Error al guardar: {exc}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -733,6 +742,7 @@ def delete_candidato(candidato_id: int, db: Session = Depends(get_db)):
         db.delete(candidato)
         db.commit()
     except SQLAlchemyError as exc:
+        logger.error(f"Error al guardar: {exc}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -762,6 +772,7 @@ def update_vacante(
         db.commit()
         db.refresh(vacante)
     except SQLAlchemyError as exc:
+        logger.error(f"Error al guardar: {exc}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -791,6 +802,7 @@ def update_candidato(
         db.commit()
         db.refresh(candidato)
     except SQLAlchemyError as exc:
+        logger.error(f"Error al guardar: {exc}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

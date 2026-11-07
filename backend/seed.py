@@ -13,6 +13,9 @@ from database import (
     ensure_postulacion_fuente_column,
 )
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
 
 def seed_database() -> None:
     """Inserta vacantes, candidatos y postulaciones iniciales una sola vez."""
@@ -29,7 +32,7 @@ def seed_database() -> None:
             select(func.count()).select_from(models.Candidato)
         )
         if hay_vacantes or hay_candidatos:
-            print(
+            logger.info(
                 "La base de datos ya contiene vacantes o candidatos; "
                 "no se agregaron datos de demostración."
             )
@@ -103,10 +106,10 @@ def seed_database() -> None:
             ]
         )
         db.commit()
-        print("Datos de demostración insertados: 2 vacantes y 2 candidatos.")
+        logger.info("Datos de demostración insertados: 2 vacantes y 2 candidatos.")
     except SQLAlchemyError:
         db.rollback()
-        logging.exception("No se pudieron insertar los datos de demostración.")
+        logger.exception("No se pudieron insertar los datos de demostración.")
         raise
     finally:
         db.close()

@@ -15,6 +15,7 @@ from PyPDF2 import PdfReader
 from PyPDF2.errors import EmptyFileError, PdfReadError, PdfStreamError
 
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 MAX_JUSTIFICATION_LENGTH = 255
 REINTENTOS_GEMINI = (0, 3, 5, 10)
@@ -309,10 +310,7 @@ VACANTES_JSON:
         TypeError,
         AttributeError,
     ) as exc:
-        logger.warning(
-            "Falló la sugerencia Gemini (%s); se usará la sugerencia local.",
-            type(exc).__name__,
-        )
+        logger.error(f"Error al sugerir vacante con Gemini: {exc}")
         return _vacante_simulada(mensaje, vacantes)
 
 
@@ -347,10 +345,7 @@ CV:
         TypeError,
         AttributeError,
     ) as exc:
-        logger.warning(
-            "Falló la extracción Gemini (%s); se usará extracción local.",
-            type(exc).__name__,
-        )
+        logger.error(f"Error al extraer perfil con Gemini: {exc}")
         return _perfil_simulado(texto_cv)
 
 
@@ -492,8 +487,5 @@ PERFIL_JSON:
         TypeError,
         AttributeError,
     ) as exc:
-        logger.warning(
-            "Falló la evaluación con Gemini (%s); se usará el respaldo simulado.",
-            type(exc).__name__,
-        )
+        logger.error(f"Error al evaluar con Gemini: {exc}")
         return evaluar_candidato_simulado(descripcion_vacante, perfil_json)
