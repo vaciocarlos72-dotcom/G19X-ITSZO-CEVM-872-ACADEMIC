@@ -392,7 +392,9 @@ def receive_email_candidate(
     asunto = payload.message.subject.strip()
     mensaje = payload.message.text.strip()
     mensaje_completo = f"Asunto: {asunto}\n{mensaje}".strip()
-    vacantes_disponibles = db.scalars(select(models.Vacante)).all()
+    vacantes_disponibles = db.scalars(
+        select(models.Vacante).where(models.Vacante.estado == "Abierta")
+    ).all()
     sugerencia = sugerir_vacante(
         mensaje_completo,
         [
