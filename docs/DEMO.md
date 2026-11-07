@@ -82,6 +82,8 @@ curl -X POST "http://localhost:8000/api/v1/canales/email" \
 
 En Windows también puedes usar `curl.exe` en lugar de `curl`.
 
+El correo menciona «Desarrolladora React». El agente de vacantes lo asocia con **Desarrollador/a React**: abre **Vacantes**, expándela y verás a Mariana Torres con estado **En revisión**; nadie la ligó a mano.
+
 ## 4. Subir y evaluar un CV desde la interfaz
 
 1. Abre <http://localhost:5173> y entra a **Vacantes**.
