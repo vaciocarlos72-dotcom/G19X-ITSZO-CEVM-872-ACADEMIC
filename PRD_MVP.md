@@ -52,6 +52,11 @@ recepción que normalizan los datos al modelo de candidatos de la plataforma:
   extrae nombre, email, teléfono y texto del mensaje.
 - **Correo electrónico simulado:** `POST /api/v1/canales/email` acepta un evento
   simplificado de correo y extrae nombre, email y contenido del mensaje.
+- Los contactos se unifican por email: los eventos de los distintos canales se
+  guardan en `ContactoCanal` asociados a un único candidato.
+- El canal de correo usa `sugerir_vacante` para asociar el mensaje con una
+  vacante; si se sugiere una que aún no está postulada, se crea automáticamente
+  una postulación en estado **En revisión**.
 
 Los tres endpoints registran al candidato en la base de datos y requieren el
 header `X-API-Key` configurado mediante `WEBHOOK_API_KEY`. Las rutas de WhatsApp

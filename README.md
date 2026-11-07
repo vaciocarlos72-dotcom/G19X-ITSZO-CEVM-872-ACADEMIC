@@ -213,8 +213,8 @@ El endpoint de evaluación persistente es
 tener una postulación para esa vacante.
 
 Para crear un candidato con un CV opcional, el endpoint extrae el texto del PDF
-y lo conserva junto con el nombre del archivo. La evaluación de afinidad se
-realiza mediante los dos agentes descritos en la sección **Uso de IA**. Los
+y lo conserva junto con el nombre del archivo. La extracción y evaluación de
+afinidad se describen en la sección **Uso de IA**. Los
 endpoints `POST /agente/evaluar-cv/{vacante_id}` y
 `POST /agente/evaluar/{postulacion_id}` permiten evaluar sin asociar una nueva
 carga de CV o reevaluar una postulación existente, respectivamente.
@@ -224,7 +224,7 @@ para CV escaneados como imagen.
 
 ## Uso de IA
 
-La evaluación de candidatos encadena dos agentes con tareas diferenciadas. El
+La plataforma usa tres agentes con tareas diferenciadas. El
 modelo se configura con `GEMINI_MODEL`; el modelo vigente por omisión es
 `gemini-3.8-flash`. El backend se conecta mediante el SDK `google-genai` y
 `GEMINI_API_KEY`.
@@ -246,6 +246,12 @@ pruebas del proyecto.
    información y devuelve un score de afinidad de
    `0` a `100` junto con una justificación breve. En evaluaciones asociadas a
    una postulación, el score y la justificación se guardan en ella.
+3. **Agente de vacantes:** recibe el asunto y el mensaje de un correo y el
+   catálogo de vacantes (actualmente se envían todas las registradas, sin
+   filtrar por estado), y devuelve `vacante_id` (o `null`) con una `confianza`
+   de 0 a 100. Si sugiere una vacante, el backend crea la postulación «En
+   revisión» sin duplicarla. Sin Gemini, el respaldo compara las palabras del
+   título con el mensaje. Por ahora sólo actúa con el canal de correo.
 
 Si Gemini no está configurado o falla, el extractor genera un perfil local con
 los datos reconocibles en el texto y el evaluador usa el respaldo simulado para
@@ -290,6 +296,7 @@ npm run dev
 ## Documentación adicional
 
 - [Arquitectura del backend](docs/backend_arquitectura.md)
+- [Guía del MVP](docs/MVP.md)
 - [Guion de demostración](docs/DEMO.md)
 - [PRD del MVP](PRD_MVP.md)
 - [Guía del frontend](frontend/README.md)
