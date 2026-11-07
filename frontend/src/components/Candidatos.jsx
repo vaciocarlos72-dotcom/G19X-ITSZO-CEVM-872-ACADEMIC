@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Check,
   Eye,
+  LoaderCircle,
   Mail,
   Pencil,
   Phone,
@@ -118,6 +119,8 @@ function Candidatos({ refreshTrigger }) {
   const [perfilAbierto, setPerfilAbierto] = useState(null)
   const [editandoId, setEditandoId] = useState(null)
   const [datosEdicion, setDatosEdicion] = useState({})
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false)
+  const [errorEdicion, setErrorEdicion] = useState('')
 
   useEffect(() => {
     let isMounted = true
@@ -197,6 +200,7 @@ function Candidatos({ refreshTrigger }) {
 
   const iniciarEdicion = (candidato) => {
     setEditandoId(candidato.id)
+    setErrorEdicion('')
     setDatosEdicion({
       nombre: candidato.nombre || '',
       email: candidato.email || '',
@@ -208,15 +212,18 @@ function Candidatos({ refreshTrigger }) {
   }
 
   const guardarEdicion = async (id) => {
+    setErrorEdicion('')
     if (
       !datosEdicion.nombre.trim() ||
       !datosEdicion.email.trim() ||
       !datosEdicion.canal_origen.trim()
     ) {
-      setError('El nombre, email y canal de origen son obligatorios.')
+      const mensaje = 'El nombre, email y canal de origen son obligatorios.'
+      setErrorEdicion(mensaje)
       return
     }
 
+    setGuardandoEdicion(true)
     try {
       const response = await api.put(`/candidatos/${id}`, {
         nombre: datosEdicion.nombre.trim(),
@@ -243,9 +250,14 @@ function Candidatos({ refreshTrigger }) {
       setDatosEdicion({})
       setError('')
       toast.success('Candidato actualizado correctamente.')
-    } catch {
-      setError('No se pudo actualizar el candidato.')
-      toast.error('No se pudo actualizar el candidato.')
+    } catch (requestError) {
+      const mensaje =
+        requestError.response?.data?.detail ||
+        'No se pudo conectar con el servicio para actualizar el candidato.'
+      setErrorEdicion(mensaje)
+      toast.error(mensaje)
+    } finally {
+      setGuardandoEdicion(false)
     }
   }
 
@@ -394,10 +406,13 @@ function Candidatos({ refreshTrigger }) {
                     onDiscard={() => descartarCandidato(candidato)}
                     onEdit={() => iniciarEdicion(candidato)}
                     onSave={() => guardarEdicion(candidato.id)}
+                    saving={guardandoEdicion}
+                    saveError={errorEdicion}
                     onCancel={() => {
                       setEditandoId(null)
                       setDatosEdicion({})
                       setError('')
+                      setErrorEdicion('')
                     }}
                   />
                 )
@@ -406,9 +421,25 @@ function Candidatos({ refreshTrigger }) {
                 <tr>
                   <td
                     colSpan={6}
-                    className="px-6 py-12 text-center text-sm text-slate-500"
+                    className="px-6 py-12 text-center"
                   >
-                    No hay candidatos que coincidan con estos filtros.
+                    <div className="mx-auto flex max-w-sm flex-col items-center gap-2 text-slate-500">
+                      <UsersRound
+                        size={24}
+                        className="text-slate-300"
+                        aria-hidden="true"
+                      />
+                      <span className="text-sm font-medium text-slate-600">
+                        {candidatos.length === 0
+                          ? 'Aún no hay candidatos registrados.'
+                          : 'No hay candidatos que coincidan con estos filtros.'}
+                      </span>
+                      {candidatos.length === 0 && (
+                        <span className="text-xs text-slate-400">
+                          Registra un candidato para iniciar el pipeline.
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}
@@ -561,6 +592,8 @@ function FragmentRow({
   onDiscard,
   onEdit,
   onSave,
+  saving,
+  saveError,
   onCancel,
 }) {
   return (
@@ -707,13 +740,35 @@ function FragmentRow({
                 <button
                   type="button"
                   onClick={onSave}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-70"
                 >
-                  <Check size={15} aria-hidden="true" />
-                  Guardar
+                  {saving ? (
+                    <>
+                      <LoaderCircle
+                        size={15}
+                        className="animate-spin"
+                        aria-hidden="true"
+                      />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={15} aria-hidden="true" />
+                      Guardar
+                    </>
+                  )}
                 </button>
               </div>
             </div>
+            {saveError && (
+              <p
+                className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600"
+                role="alert"
+              >
+                {saveError}
+              </p>
+            )}
           </td>
         </tr>
       )}

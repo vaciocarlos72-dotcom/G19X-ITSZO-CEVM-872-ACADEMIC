@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, Upload } from 'lucide-react'
+import { FileText, LoaderCircle, Upload } from 'lucide-react'
 import api from '../api'
 
 function CrearCandidato({ onCreated }) {
@@ -74,7 +74,7 @@ function CrearCandidato({ onCreated }) {
     } catch (requestError) {
       setError(
         requestError.response?.data?.detail ||
-          'No se pudo crear el candidato.',
+          'No se pudo conectar con el servicio para crear el candidato.',
       )
     } finally {
       setSubmitting(false)
@@ -203,13 +203,31 @@ function CrearCandidato({ onCreated }) {
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {submitting ? 'Guardando...' : 'Crear candidato'}
+          {submitting ? (
+            <>
+              <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+              Guardando...
+            </>
+          ) : (
+            'Crear candidato'
+          )}
         </button>
       </form>
-      {message && <p className="mt-4 text-sm text-green-700" role="status">{message}</p>}
-      {error && <p className="mt-4 text-sm text-red-700" role="alert">{error}</p>}
+      {message && (
+        <p className="mt-4 text-sm text-emerald-700" role="status">
+          {message}
+        </p>
+      )}
+      {error && (
+        <p
+          className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
     </section>
   )
 }

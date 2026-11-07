@@ -51,6 +51,8 @@ function Vacantes({ refreshTrigger }) {
   const [vacantes, setVacantes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [errorEdicion, setErrorEdicion] = useState('')
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false)
   const [mostrarModalNueva, setMostrarModalNueva] = useState(false)
   const [refreshVacantes, setRefreshVacantes] = useState(0)
   const [editandoId, setEditandoId] = useState(null)
@@ -62,6 +64,7 @@ function Vacantes({ refreshTrigger }) {
   const [cvSeleccionados, setCvSeleccionados] = useState({})
   const [evaluacionesCv, setEvaluacionesCv] = useState({})
   const [erroresCv, setErroresCv] = useState({})
+  const [erroresEvaluacion, setErroresEvaluacion] = useState({})
   const [evaluandoCv, setEvaluandoCv] = useState({})
   const [isLoading, setIsLoading] = useState({})
 
@@ -160,6 +163,7 @@ function Vacantes({ refreshTrigger }) {
 
   const iniciarEdicion = (vacante) => {
     setEditandoId(vacante.id)
+    setErrorEdicion('')
     setDatosEdicion({
       titulo: vacante.titulo,
       descripcion: vacante.descripcion || '',
@@ -169,11 +173,14 @@ function Vacantes({ refreshTrigger }) {
   }
 
   const guardarEdicion = async (id) => {
+    setErrorEdicion('')
     if (!datosEdicion.titulo?.trim() || !datosEdicion.estado?.trim()) {
-      setError('El titulo y el estado son obligatorios.')
+      const mensaje = 'El titulo y el estado son obligatorios.'
+      setErrorEdicion(mensaje)
       return
     }
 
+    setGuardandoEdicion(true)
     try {
       const response = await api.put(`/vacantes/${id}`, {
         titulo: datosEdicion.titulo.trim(),
@@ -191,9 +198,14 @@ function Vacantes({ refreshTrigger }) {
       setDatosEdicion({})
       setError('')
       toast.success('Vacante actualizada correctamente.')
-    } catch {
-      setError('No se pudo actualizar la vacante.')
-      toast.error('No se pudo actualizar la vacante.')
+    } catch (requestError) {
+      const mensaje =
+        requestError.response?.data?.detail ||
+        'No se pudo conectar con el servicio para actualizar la vacante.'
+      setErrorEdicion(mensaje)
+      toast.error(mensaje)
+    } finally {
+      setGuardandoEdicion(false)
     }
   }
 
@@ -245,6 +257,10 @@ function Vacantes({ refreshTrigger }) {
       ...actuales,
       [postulacionId]: true,
     }))
+    setErroresEvaluacion((actuales) => ({
+      ...actuales,
+      [postulacionId]: '',
+    }))
 
     try {
       const response = await api.post(`/agente/evaluar/${postulacionId}`)
@@ -256,8 +272,15 @@ function Vacantes({ refreshTrigger }) {
         ),
       )
       toast.success('Postulación evaluada correctamente.')
-    } catch {
-      toast.error('No se pudo evaluar la postulación.')
+    } catch (requestError) {
+      const mensaje =
+        requestError.response?.data?.detail ||
+        'No se pudo conectar con el servicio de evaluación.'
+      setErroresEvaluacion((actuales) => ({
+        ...actuales,
+        [postulacionId]: mensaje,
+      }))
+      toast.error(mensaje)
     } finally {
       setIsLoading((actuales) => ({
         ...actuales,
@@ -377,11 +400,11 @@ function Vacantes({ refreshTrigger }) {
   }
 
   if (loading) {
-    return <p className="text-gray-600">Cargando vacantes...</p>
-  }
-
-  if (error) {
-    return <p className="text-red-700" role="alert">{error}</p>
+    return (
+      <p className="py-10 text-center text-sm font-medium text-slate-500" role="status">
+        Cargando vacantes...
+      </p>
+    )
   }
 
   return (
@@ -413,6 +436,33 @@ function Vacantes({ refreshTrigger }) {
           </button>
         </div>
       </div>
+      {error && (
+        <p
+          className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
+      {vacantesParaRenderizar.length === 0 ? (
+        <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+          <Briefcase
+            size={28}
+            className="text-slate-300"
+            aria-hidden="true"
+          />
+          <p className="mt-3 text-sm font-semibold text-slate-600">
+            {error
+              ? 'No se pudieron cargar las vacantes.'
+              : 'Aún no hay vacantes registradas.'}
+          </p>
+          <p className="mt-1 text-sm text-slate-400">
+            {error
+              ? 'Comprueba la conexión e inténtalo de nuevo.'
+              : 'Crea una vacante para comenzar a recibir postulaciones.'}
+          </p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
         {vacantesParaRenderizar.map((vacante) => (
           <article
@@ -458,10 +508,24 @@ function Vacantes({ refreshTrigger }) {
                   <button
                     type="button"
                     onClick={() => guardarEdicion(vacante?.id)}
-                    className="flex items-center gap-1 rounded bg-emerald-500 px-3 py-1 text-white transition hover:scale-105 hover:bg-emerald-600"
+                    disabled={guardandoEdicion}
+                    className="flex items-center gap-1 rounded bg-emerald-500 px-3 py-1 text-white transition hover:scale-105 hover:bg-emerald-600 disabled:cursor-wait disabled:opacity-70"
                   >
-                    <CheckCircle size={16} aria-hidden="true" />
-                    Guardar
+                    {guardandoEdicion ? (
+                      <>
+                        <LoaderCircle
+                          size={16}
+                          className="animate-spin"
+                          aria-hidden="true"
+                        />
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={16} aria-hidden="true" />
+                        Guardar
+                      </>
+                    )}
                   </button>
                   <button
                     type="button"
@@ -472,6 +536,14 @@ function Vacantes({ refreshTrigger }) {
                     Cancelar
                   </button>
                 </div>
+                {errorEdicion && editandoId === vacante?.id && (
+                  <p
+                    className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600"
+                    role="alert"
+                  >
+                    {errorEdicion}
+                  </p>
+                )}
               </div>
             ) : (
               <>
@@ -575,9 +647,16 @@ function Vacantes({ refreshTrigger }) {
                   <div className="mt-4 border-t border-gray-200 pt-4">
                     <h4 className="font-semibold text-gray-800">Postulados</h4>
                     {postulacionesParaRenderizar.length === 0 ? (
-                      <p className="mt-2 text-sm text-gray-600">
-                        No hay postulados para esta vacante.
-                      </p>
+                      <div className="mt-3 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center">
+                        <UsersRound
+                          size={24}
+                          className="text-slate-300"
+                          aria-hidden="true"
+                        />
+                        <p className="mt-2 text-sm font-medium text-slate-500">
+                          No hay postulaciones para esta vacante.
+                        </p>
+                      </div>
                     ) : (
                       <ul className="mt-2 space-y-2">
                         {postulacionesParaRenderizar.map((postulacion) => {
@@ -682,28 +761,40 @@ function Vacantes({ refreshTrigger }) {
                                       undefined &&
                                     '%'}
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={() => evaluarPostulacion(postulacion?.id)}
-                                  disabled={isLoading?.[postulacion?.id]}
-                                  className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:cursor-wait disabled:opacity-70"
-                                >
-                                  {isLoading?.[postulacion?.id] ? (
-                                    <>
-                                      <LoaderCircle
-                                        size={14}
-                                        className="animate-spin"
-                                        aria-hidden="true"
-                                      />
-                                      Procesando...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Bot size={14} aria-hidden="true" />
-                                      Evaluar con agente
-                                    </>
+                                <div className="flex flex-col items-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      evaluarPostulacion(postulacion?.id)
+                                    }
+                                    disabled={isLoading?.[postulacion?.id]}
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:cursor-wait disabled:opacity-70"
+                                  >
+                                    {isLoading?.[postulacion?.id] ? (
+                                      <>
+                                        <LoaderCircle
+                                          size={14}
+                                          className="animate-spin"
+                                          aria-hidden="true"
+                                        />
+                                        Evaluando...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Bot size={14} aria-hidden="true" />
+                                        Evaluar con agente
+                                      </>
+                                    )}
+                                  </button>
+                                  {erroresEvaluacion?.[postulacion?.id] && (
+                                    <p
+                                      className="max-w-56 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600"
+                                      role="alert"
+                                    >
+                                      {erroresEvaluacion[postulacion.id]}
+                                    </p>
                                   )}
-                                </button>
+                                </div>
                               </div>
                             </div>
 
@@ -750,7 +841,7 @@ function Vacantes({ refreshTrigger }) {
                                         className="animate-spin"
                                         aria-hidden="true"
                                       />
-                                      La IA está evaluando el perfil...
+                                      Evaluando...
                                     </>
                                   ) : (
                                     <>
@@ -762,7 +853,7 @@ function Vacantes({ refreshTrigger }) {
                               </div>
                               {erroresCv?.[postulacion?.id] && (
                                 <p
-                                  className="mt-2 text-xs font-medium text-rose-700"
+                                  className="mt-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs font-medium text-red-600"
                                   role="alert"
                                 >
                                   {erroresCv?.[postulacion?.id]}
@@ -810,6 +901,7 @@ function Vacantes({ refreshTrigger }) {
           </article>
         ))}
       </div>
+      )}
       {mostrarModalNueva && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
