@@ -293,9 +293,10 @@ def _registrar_candidato_omnicanal(
         )
         if vacante_sugerida_id is not None:
             vacante = db.get(models.Vacante, vacante_sugerida_id)
-            if vacante is None:
+            if vacante is None or vacante.estado != "Abierta":
                 logger.warning(
-                    "La vacante sugerida %s ya no existe; no se creó la postulación.",
+                    "La vacante sugerida %s no existe o está cerrada; "
+                    "no se creó la postulación.",
                     vacante_sugerida_id,
                 )
             else:
@@ -370,7 +371,27 @@ def receive_whatsapp_candidate(
         canal_origen="WhatsApp",
         habilidades=message.text.body.strip() or None,
     )
-    resultado, existente = _registrar_candidato_omnicanal(candidato_data, db)
+    mensaje = message.text.body.strip()
+    vacantes = db.scalars(
+        select(models.Vacante).where(models.Vacante.estado == "Abierta")
+    ).all()
+    sugerencia = sugerir_vacante(
+        mensaje,
+        [
+            {
+                "id": vacante.id,
+                "titulo": vacante.titulo,
+                "descripcion": vacante.descripcion or "",
+            }
+            for vacante in vacantes
+        ],
+    )
+    resultado, existente = _registrar_candidato_omnicanal(
+        candidato_data,
+        db,
+        mensaje_contacto=mensaje,
+        vacante_sugerida_id=sugerencia["vacante_id"],
+    )
     response.status_code = status.HTTP_200_OK if existente else status.HTTP_201_CREATED
     return resultado
 
@@ -396,7 +417,7 @@ def receive_email_candidate(
     asunto = payload.message.subject.strip()
     mensaje = payload.message.text.strip()
     mensaje_completo = f"Asunto: {asunto}\n{mensaje}".strip()
-    vacantes_disponibles = db.scalars(
+    vacantes = db.scalars(
         select(models.Vacante).where(models.Vacante.estado == "Abierta")
     ).all()
     sugerencia = sugerir_vacante(
@@ -407,7 +428,7 @@ def receive_email_candidate(
                 "titulo": vacante.titulo,
                 "descripcion": vacante.descripcion or "",
             }
-            for vacante in vacantes_disponibles
+            for vacante in vacantes
         ],
     )
     candidato_data = CandidatoCreate(

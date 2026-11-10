@@ -4,16 +4,13 @@ import json
 from uuid import uuid4
 
 import pytest
-from fastapi.testclient import TestClient
 
 import ia_agent
 import main
 import models
 
 
-def test_email_channel_without_api_key_returns_401():
-    client = TestClient(main.app)
-
+def test_email_channel_without_api_key_returns_401(client):
     response = client.post(
         "/api/v1/canales/email",
         json={
@@ -32,8 +29,7 @@ def test_email_channel_without_api_key_returns_401():
     assert response.status_code == 401
 
 
-def test_webhook_generico_registra_contacto_del_canal(monkeypatch):
-    client = TestClient(main.app)
+def test_webhook_generico_registra_contacto_del_canal(client, monkeypatch):
     identificador = uuid4().hex
     email = f"webhook-{identificador}@example.com"
     monkeypatch.setenv("WEBHOOK_API_KEY", "clave-de-prueba")
@@ -51,7 +47,7 @@ def test_webhook_generico_registra_contacto_del_canal(monkeypatch):
         )
         assert response.status_code == 201
 
-        with main.SessionLocal() as db:
+        with client.app.state.test_session() as db:
             candidato = (
                 db.query(models.Candidato)
                 .filter(models.Candidato.email == email)
@@ -66,7 +62,7 @@ def test_webhook_generico_registra_contacto_del_canal(monkeypatch):
             assert contactos[0].canal == "Webhook externo"
             assert contactos[0].mensaje == "Experiencia en FastAPI"
     finally:
-        with main.SessionLocal() as db:
+        with client.app.state.test_session() as db:
             candidato = (
                 db.query(models.Candidato)
                 .filter(models.Candidato.email == email)
@@ -100,12 +96,10 @@ def test_evaluador_simulado_retorna_score_100_y_fuente():
 
 
 def test_evaluacion_persistida_muestra_fuente_simulada_en_postulaciones(
-    monkeypatch,
+    client, monkeypatch,
 ):
-    client = TestClient(main.app)
     identificador = uuid4().hex
     email = f"evaluacion-{identificador}@example.com"
-    candidato_id = None
     vacante_id = None
 
     monkeypatch.setattr(
@@ -176,7 +170,7 @@ def test_evaluacion_persistida_muestra_fuente_simulada_en_postulaciones(
         )
         assert postulacion_evaluada["fuente_evaluacion"] == "simulado"
     finally:
-        with main.SessionLocal() as db:
+        with client.app.state.test_session() as db:
             if candidato_id is not None:
                 candidato = db.get(models.Candidato, candidato_id)
                 if candidato is not None:
@@ -189,9 +183,8 @@ def test_evaluacion_persistida_muestra_fuente_simulada_en_postulaciones(
 
 
 def test_alta_por_formulario_y_correo_comparten_candidato_y_contactos(
-    monkeypatch,
+    client, monkeypatch,
 ):
-    client = TestClient(main.app)
     identificador = uuid4().hex
     email = f"form-email-{identificador}@example.com"
     candidato_id = None
@@ -236,7 +229,7 @@ def test_alta_por_formulario_y_correo_comparten_candidato_y_contactos(
             "Tengo experiencia adicional en FastAPI."
         )
 
-        with main.SessionLocal() as db:
+        with client.app.state.test_session() as db:
             candidatos = (
                 db.query(models.Candidato)
                 .filter(models.Candidato.email == email)
@@ -253,7 +246,7 @@ def test_alta_por_formulario_y_correo_comparten_candidato_y_contactos(
                 "Email",
             }
     finally:
-        with main.SessionLocal() as db:
+        with client.app.state.test_session() as db:
             candidato = (
                 db.query(models.Candidato)
                 .filter(models.Candidato.email == email)
@@ -264,8 +257,7 @@ def test_alta_por_formulario_y_correo_comparten_candidato_y_contactos(
                 db.commit()
 
 
-def test_alta_multipart_guarda_contacto_del_formulario():
-    client = TestClient(main.app)
+def test_alta_multipart_guarda_contacto_del_formulario(client):
     identificador = uuid4().hex
     email = f"form-cv-{identificador}@example.com"
 
@@ -282,7 +274,7 @@ def test_alta_multipart_guarda_contacto_del_formulario():
         assert response.status_code == 201
         candidato_id = response.json()["id"]
 
-        with main.SessionLocal() as db:
+        with client.app.state.test_session() as db:
             contactos = (
                 db.query(models.ContactoCanal)
                 .filter(models.ContactoCanal.candidato_id == candidato_id)
@@ -292,7 +284,7 @@ def test_alta_multipart_guarda_contacto_del_formulario():
             assert contactos[0].canal == "Formulario web"
             assert contactos[0].mensaje == "Python y SQL"
     finally:
-        with main.SessionLocal() as db:
+        with client.app.state.test_session() as db:
             candidato = (
                 db.query(models.Candidato)
                 .filter(models.Candidato.email == email)
@@ -304,9 +296,8 @@ def test_alta_multipart_guarda_contacto_del_formulario():
 
 
 def test_correo_con_titulo_de_vacante_crea_postulacion_automatica(
-    monkeypatch,
+    client, monkeypatch,
 ):
-    client = TestClient(main.app)
     identificador = uuid4().hex
     titulo_vacante = f"Ingeniero de Datos {identificador}"
     email = f"vacante-email-{identificador}@example.com"
@@ -342,7 +333,7 @@ def test_correo_con_titulo_de_vacante_crea_postulacion_automatica(
         assert correo_response.status_code == 201
         candidato_id = correo_response.json()["id"]
 
-        with main.SessionLocal() as db:
+        with client.app.state.test_session() as db:
             postulaciones = (
                 db.query(models.Postulacion)
                 .filter(
@@ -354,7 +345,7 @@ def test_correo_con_titulo_de_vacante_crea_postulacion_automatica(
             assert len(postulaciones) == 1
             assert postulaciones[0].estado == "En revisión"
     finally:
-        with main.SessionLocal() as db:
+        with client.app.state.test_session() as db:
             if candidato_id is not None:
                 candidato = db.get(models.Candidato, candidato_id)
                 if candidato is not None:
@@ -366,7 +357,7 @@ def test_correo_con_titulo_de_vacante_crea_postulacion_automatica(
             db.commit()
 
 
-def test_correo_no_postula_a_vacante_cerrada(monkeypatch):
+def test_correo_no_postula_a_vacante_cerrada(test_session, monkeypatch):
     identificador = uuid4().hex
     titulo_vacante = f"Ingeniero de Datos {identificador}"
     email = f"vacante-cerrada-{identificador}@example.com"
@@ -391,61 +382,131 @@ def test_correo_no_postula_a_vacante_cerrada(monkeypatch):
         sugerir_vacante_cerrada_si_disponible,
     )
 
-    try:
-        with main.SessionLocal() as db:
-            vacante = models.Vacante(
-                titulo=titulo_vacante,
-                descripcion="Experiencia en Python y SQL.",
-                estado="Cerrada",
-            )
-            db.add(vacante)
-            db.flush()
-            vacante_id = vacante.id
+    with test_session() as db:
+        vacante = models.Vacante(
+            titulo=titulo_vacante,
+            descripcion="Experiencia en Python y SQL.",
+            estado="Cerrada",
+        )
+        db.add(vacante)
+        db.flush()
+        vacante_id = vacante.id
 
-            payload = main.EmailWebhookPayload.model_validate(
-                {
-                    "event": "email.received",
-                    "from": {"name": "Candidata de prueba", "email": email},
-                    "message": {
-                        "subject": f"Postulación para {titulo_vacante}",
-                        "text": "Me interesa esta oportunidad.",
-                    },
-                }
-            )
-            response = main.Response()
-            resultado = main.receive_email_candidate(payload, response, None, db)
+        payload = main.EmailWebhookPayload.model_validate(
+            {
+                "event": "email.received",
+                "from": {"name": "Candidata de prueba", "email": email},
+                "message": {
+                    "subject": f"Postulación para {titulo_vacante}",
+                    "text": "Me interesa esta oportunidad.",
+                },
+            }
+        )
+        response = main.Response()
+        resultado = main.receive_email_candidate(payload, response, None, db)
 
-            assert response.status_code == 201
-            candidato_id = resultado["id"]
-            assert all(
-                vacante.get("id") != vacante_id
-                for vacante in vacantes_recibidas
+        assert response.status_code == 201
+        candidato_id = resultado["id"]
+        assert all(
+            vacante.get("id") != vacante_id for vacante in vacantes_recibidas
+        )
+        postulaciones = (
+            db.query(models.Postulacion)
+            .filter(
+                models.Postulacion.candidato_id == candidato_id,
+                models.Postulacion.vacante_id == vacante_id,
             )
-            postulaciones = (
-                db.query(models.Postulacion)
-                .filter(
-                    models.Postulacion.candidato_id == candidato_id,
-                    models.Postulacion.vacante_id == vacante_id,
+            .all()
+        )
+        assert postulaciones == []
+
+
+def test_whatsapp_sugiere_solo_vacantes_abiertas(test_session, monkeypatch):
+    identificador = uuid4().hex
+    email = f"whatsapp-vacante-{identificador}@example.com"
+    titulo_abierto = f"Desarrollador React {identificador}"
+    vacantes_recibidas = []
+
+    with test_session() as db:
+        vacante_abierta = models.Vacante(
+            titulo=titulo_abierto,
+            descripcion="Experiencia en React.",
+            estado="Abierta",
+        )
+        vacante_cerrada = models.Vacante(
+            titulo=f"Ingeniero de Datos {identificador}",
+            descripcion="Experiencia en Python y SQL.",
+            estado="Cerrada",
+        )
+        db.add_all([vacante_abierta, vacante_cerrada])
+        db.flush()
+        vacante_abierta_id = vacante_abierta.id
+        vacante_cerrada_id = vacante_cerrada.id
+
+        def sugerir_vacante_abierta(mensaje, vacantes):
+            vacantes_recibidas.extend(vacantes)
+            assert "Desarrollador React" in mensaje
+            return {"vacante_id": vacante_abierta_id, "confianza": 100}
+
+        monkeypatch.setattr(main, "sugerir_vacante", sugerir_vacante_abierta)
+        payload = main.WhatsAppWebhookPayload.model_validate(
+            {
+                "object": "whatsapp_business_account",
+                "entry": [
+                    {
+                        "changes": [
+                            {
+                                "value": {
+                                    "candidate_email": email,
+                                    "contacts": [
+                                        {
+                                            "profile": {
+                                                "name": "Candidata WhatsApp"
+                                            },
+                                            "wa_id": "525500000099",
+                                        }
+                                    ],
+                                    "messages": [
+                                        {
+                                            "from": "525500000099",
+                                            "text": {
+                                                "body": (
+                                                    f"Me interesa {titulo_abierto}"
+                                                )
+                                            },
+                                        }
+                                    ],
+                                }
+                            }
+                        ]
+                    }
+                ],
+            }
+        )
+        response = main.Response()
+        resultado = main.receive_whatsapp_candidate(payload, response, None, db)
+
+        assert response.status_code == 201
+        assert resultado["id"]
+        assert [vacante["id"] for vacante in vacantes_recibidas] == [
+            vacante_abierta_id
+        ]
+        postulaciones = (
+            db.query(models.Postulacion)
+            .filter(
+                models.Postulacion.vacante_id.in_(
+                    [vacante_abierta_id, vacante_cerrada_id]
                 )
-                .all()
             )
-            assert postulaciones == []
-    finally:
-        with main.SessionLocal() as db:
-            if candidato_id is not None:
-                candidato = db.get(models.Candidato, candidato_id)
-                if candidato is not None:
-                    db.delete(candidato)
-            if vacante_id is not None:
-                vacante = db.get(models.Vacante, vacante_id)
-                if vacante is not None:
-                    db.delete(vacante)
-            db.commit()
+            .all()
+        )
+        assert len(postulaciones) == 1
+        assert postulaciones[0].vacante_id == vacante_abierta_id
+        assert postulaciones[0].estado == "En revisión"
 
 
-def test_whatsapp_y_email_unifican_contactos_en_un_candidato():
+def test_whatsapp_y_email_unifican_contactos_en_un_candidato(client):
     email = f"contactos-{uuid4().hex}@example.com"
-    client = TestClient(main.app)
     headers = {"X-API-Key": "clave-de-prueba"}
     whatsapp_payload = {
         "object": "whatsapp_business_account",
@@ -497,7 +558,7 @@ def test_whatsapp_y_email_unifican_contactos_en_un_candidato():
         assert email_response.status_code == 200
         assert email_response.json() == {"existente": True}
 
-        with main.SessionLocal() as db:
+        with client.app.state.test_session() as db:
             candidatos = (
                 db.query(models.Candidato)
                 .filter(models.Candidato.email == email)
@@ -521,7 +582,7 @@ def test_whatsapp_y_email_unifican_contactos_en_un_candidato():
         )
         assert set(candidato_api["canales_contacto"]) == {"WhatsApp", "Email"}
     finally:
-        with main.SessionLocal() as db:
+        with client.app.state.test_session() as db:
             candidato = (
                 db.query(models.Candidato)
                 .filter(models.Candidato.email == email)

@@ -1,49 +1,14 @@
 """Pruebas HTTP básicas para los endpoints principales de PluriOne."""
 
 import json
-import os
 
-os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
-
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import main
 import ia_agent
 import models
 import database
-
-
-@pytest.fixture
-def client(monkeypatch):
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    models.Base.metadata.create_all(bind=engine)
-    test_session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-
-    def override_get_db():
-        db = test_session()
-        try:
-            yield db
-        finally:
-            db.close()
-
-    main.app.dependency_overrides[main.get_db] = override_get_db
-    main.app.state.test_session = test_session
-    monkeypatch.setenv("WEBHOOK_API_KEY", "test-webhook-key")
-
-    with TestClient(main.app) as test_client:
-        yield test_client
-
-    main.app.dependency_overrides.clear()
-    del main.app.state.test_session
-    engine.dispose()
 
 
 def crear_vacante(client: TestClient) -> int:
@@ -119,7 +84,7 @@ def test_webhook_whatsapp_normaliza_y_registra_candidato(client: TestClient):
     response = client.post(
         "/api/v1/canales/whatsapp",
         json=payload,
-        headers={"X-API-Key": "test-webhook-key"},
+        headers={"X-API-Key": "clave-de-prueba"},
     )
 
     assert response.status_code == 201
