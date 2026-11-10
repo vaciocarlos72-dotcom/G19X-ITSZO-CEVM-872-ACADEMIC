@@ -246,12 +246,11 @@ pruebas del proyecto.
    información y devuelve un score de afinidad de
    `0` a `100` junto con una justificación breve. En evaluaciones asociadas a
    una postulación, el score y la justificación se guardan en ella.
-3. **Agente de vacantes:** recibe el asunto y el mensaje de un correo y el
-   catálogo de vacantes (actualmente se envían todas las registradas, sin
-   filtrar por estado), y devuelve `vacante_id` (o `null`) con una `confianza`
-   de 0 a 100. Si sugiere una vacante, el backend crea la postulación «En
-   revisión» sin duplicarla. Sin Gemini, el respaldo compara las palabras del
-   título con el mensaje. Por ahora sólo actúa con el canal de correo.
+3. **Agente de vacantes:** lee el asunto y el mensaje de los correos entrantes,
+   y los compara con el catálogo de vacantes abiertas. Devuelve `vacante_id` (o
+   `null`) con una `confianza` de 0 a 100. Si sugiere una vacante, el backend
+   crea la postulación «En revisión» sin duplicarla. Sin Gemini, el respaldo
+   compara las palabras del título con el mensaje.
 
 Si Gemini no está configurado o falla, el extractor genera un perfil local con
 los datos reconocibles en el texto y el evaluador usa el respaldo simulado para

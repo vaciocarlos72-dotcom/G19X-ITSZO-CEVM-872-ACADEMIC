@@ -54,9 +54,10 @@ recepción que normalizan los datos al modelo de candidatos de la plataforma:
   simplificado de correo y extrae nombre, email y contenido del mensaje.
 - Los contactos se unifican por email: los eventos de los distintos canales se
   guardan en `ContactoCanal` asociados a un único candidato.
-- El canal de correo usa `sugerir_vacante` para asociar el mensaje con una
-  vacante; si se sugiere una que aún no está postulada, se crea automáticamente
-  una postulación en estado **En revisión**.
+- El agente de vacantes analiza el asunto y el mensaje de los correos entrantes
+  con `sugerir_vacante`, usando solo vacantes abiertas para encontrar una
+  asociación; si se sugiere una vacante a la que la persona aún no está
+  postulada, se crea automáticamente una postulación en estado **En revisión**.
 
 Los tres endpoints registran al candidato en la base de datos y requieren el
 header `X-API-Key` configurado mediante `WEBHOOK_API_KEY`. Las rutas de WhatsApp

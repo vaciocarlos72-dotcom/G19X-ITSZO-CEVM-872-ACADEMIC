@@ -2,9 +2,9 @@
 
 ## Acceso
 
-El MVP no tiene inicio de sesión ni cuentas de usuario: la interfaz se abre
-directo en `http://localhost:5173`. Los webhooks de canales piden el header
-`X-API-Key` con el valor de `WEBHOOK_API_KEY`.
+La plataforma no tiene inicio de sesión; se accede directo a
+http://localhost:5173. Los webhooks de canales piden el header `X-API-Key` con
+el valor de `WEBHOOK_API_KEY`.
 
 Para iniciar la plataforma, configura las variables indicadas en el
 [README principal](../README.md) y ejecuta `docker compose up --build`. La
@@ -19,9 +19,18 @@ Desde la raíz del repositorio, ejecuta:
 docker exec plurione_backend python seed.py
 ```
 
-El script carga las vacantes **Desarrollador/a React** e **Ingeniero/a de
-Datos**, además de dos candidatos y sus postulaciones. Solo inserta estos
-registros cuando las tablas de vacantes y candidatos están vacías.
+Cuando las tablas de vacantes y candidatos están vacías, el script inserta:
+
+- Vacante abierta **Desarrollador/a React**, con enfoque en React, JavaScript,
+  interfaces accesibles y consumo de APIs.
+- Vacante abierta **Ingeniero/a de Datos**, con enfoque en Python, SQL y
+  pipelines de datos.
+- Candidato **Valentina Ríos** (`valentina.rios.seed@example.com`), con
+  habilidades en React, JavaScript, accesibilidad y APIs; canal **Webhook**.
+- Candidato **Andrés Morales** (`andres.morales.seed@example.com`), con
+  habilidades en Python, SQL y pipelines de datos; canal **Email**.
+- Una postulación **En revisión** para cada candidato, asociada a la vacante
+  correspondiente, y un registro inicial en `ContactoCanal` por candidato.
 
 Para probar la recepción omnicanal, el directorio `docs/ejemplos/` contiene
 `whatsapp.json` y `email.json`. Ambos ejemplos usan el mismo correo para
@@ -32,8 +41,9 @@ candidato.
 
 Al recibir un CV, PluriOne extrae el texto del PDF y genera un perfil
 estructurado. El agente evaluador compara el perfil con la vacante. Cuando un
-correo entrante menciona una vacante, el agente de vacantes sugiere una
-asociación y el backend crea la postulación si no existe. Consulta el
+correo entrante menciona una vacante, el tercer agente analiza el asunto y el
+mensaje, sugiere una vacante abierta y el backend crea la postulación si no
+existe. Consulta el
 [guion de demostración](./DEMO.md) para seguir el flujo completo.
 
 Las respuestas de evaluación identifican si se usó Gemini o el respaldo
