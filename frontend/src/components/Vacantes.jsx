@@ -216,6 +216,7 @@ function Vacantes({ refreshTrigger }) {
       return
     }
 
+    setError('')
     try {
       await api.post('/postulaciones/', {
         candidato_id: Number(candidatoId),
@@ -226,8 +227,12 @@ function Vacantes({ refreshTrigger }) {
         ...currentSelection,
         [vacanteId]: '',
       }))
-    } catch {
-      toast.error('No se pudo asignar el candidato.')
+    } catch (requestError) {
+      const mensaje =
+        requestError.response?.data?.detail ||
+        'No se pudo conectar con el servicio para asignar el candidato.'
+      setError(mensaje)
+      toast.error(mensaje)
     }
   }
 
@@ -401,9 +406,17 @@ function Vacantes({ refreshTrigger }) {
 
   if (loading) {
     return (
-      <p className="py-10 text-center text-sm font-medium text-slate-500" role="status">
+      <div
+        className="flex items-center justify-center gap-2 py-10 text-sm font-medium text-slate-500"
+        role="status"
+      >
+        <LoaderCircle
+          size={18}
+          className="animate-spin text-indigo-500"
+          aria-hidden="true"
+        />
         Cargando vacantes...
-      </p>
+      </div>
     )
   }
 
@@ -445,7 +458,7 @@ function Vacantes({ refreshTrigger }) {
         </p>
       )}
       {vacantesParaRenderizar.length === 0 ? (
-        <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+        <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
           <Briefcase
             size={28}
             className="text-slate-300"
@@ -454,12 +467,12 @@ function Vacantes({ refreshTrigger }) {
           <p className="mt-3 text-sm font-semibold text-slate-600">
             {error
               ? 'No se pudieron cargar las vacantes.'
-              : 'Aún no hay vacantes registradas.'}
+              : 'No hay registros disponibles'}
           </p>
           <p className="mt-1 text-sm text-slate-400">
             {error
               ? 'Comprueba la conexión e inténtalo de nuevo.'
-              : 'Crea una vacante para comenzar a recibir postulaciones.'}
+              : 'Aún no hay vacantes registradas. Crea una vacante para comenzar.'}
           </p>
         </div>
       ) : (
@@ -647,13 +660,16 @@ function Vacantes({ refreshTrigger }) {
                   <div className="mt-4 border-t border-gray-200 pt-4">
                     <h4 className="font-semibold text-gray-800">Postulados</h4>
                     {postulacionesParaRenderizar.length === 0 ? (
-                      <div className="mt-3 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center">
+                      <div className="mt-3 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
                         <UsersRound
                           size={24}
                           className="text-slate-300"
                           aria-hidden="true"
                         />
-                        <p className="mt-2 text-sm font-medium text-slate-500">
+                        <p className="mt-2 text-sm font-semibold text-slate-600">
+                          No hay registros disponibles
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
                           No hay postulaciones para esta vacante.
                         </p>
                       </div>

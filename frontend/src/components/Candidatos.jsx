@@ -274,9 +274,17 @@ function Candidatos({ refreshTrigger }) {
 
   if (loading) {
     return (
-      <p className="py-10 text-center text-sm font-medium text-slate-500" role="status">
+      <div
+        className="flex items-center justify-center gap-2 py-10 text-sm font-medium text-slate-500"
+        role="status"
+      >
+        <LoaderCircle
+          size={18}
+          className="animate-spin text-indigo-500"
+          aria-hidden="true"
+        />
         Cargando candidatos...
-      </p>
+      </div>
     )
   }
 
@@ -423,7 +431,7 @@ function Candidatos({ refreshTrigger }) {
                     colSpan={6}
                     className="px-6 py-12 text-center"
                   >
-                    <div className="mx-auto flex max-w-sm flex-col items-center gap-2 text-slate-500">
+                    <div className="mx-auto flex max-w-sm flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-7 text-slate-500">
                       <UsersRound
                         size={24}
                         className="text-slate-300"
@@ -431,12 +439,12 @@ function Candidatos({ refreshTrigger }) {
                       />
                       <span className="text-sm font-medium text-slate-600">
                         {candidatos.length === 0
-                          ? 'Aún no hay candidatos registrados.'
+                          ? 'No hay registros disponibles'
                           : 'No hay candidatos que coincidan con estos filtros.'}
                       </span>
                       {candidatos.length === 0 && (
                         <span className="text-xs text-slate-400">
-                          Registra un candidato para iniciar el pipeline.
+                          Aún no hay candidatos registrados. Registra uno para iniciar el pipeline.
                         </span>
                       )}
                     </div>

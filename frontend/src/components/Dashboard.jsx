@@ -15,6 +15,8 @@ import {
   Activity,
   BriefcaseBusiness,
   Brain,
+  Inbox,
+  LoaderCircle,
   Mail,
   MessageCircle,
   UsersRound,
@@ -69,6 +71,18 @@ const parsePerfilJson = (perfilJson) => {
   } catch {
     return null
   }
+}
+
+function EmptyState({ detail }) {
+  return (
+    <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 text-center">
+      <Inbox size={26} className="text-slate-300" aria-hidden="true" />
+      <p className="mt-3 text-sm font-semibold text-slate-600">
+        No hay registros disponibles
+      </p>
+      <p className="mt-1 text-xs text-slate-400">{detail}</p>
+    </div>
+  )
 }
 
 function Dashboard() {
@@ -305,9 +319,17 @@ function Dashboard() {
   if (loading) {
     return (
       <div className="flex min-h-64 items-center justify-center">
-        <p className="text-sm font-medium text-slate-500" role="status">
+        <div
+          className="flex items-center gap-2 text-sm font-medium text-slate-500"
+          role="status"
+        >
+          <LoaderCircle
+            size={18}
+            className="animate-spin text-indigo-500"
+            aria-hidden="true"
+          />
           Cargando métricas...
-        </p>
+        </div>
       </div>
     )
   }
@@ -370,9 +392,7 @@ function Dashboard() {
             </p>
           </div>
           {resumen.distribucion.length === 0 ? (
-            <div className="flex h-64 items-center justify-center text-sm text-slate-400">
-              Aún no hay candidatos registrados.
-            </div>
+            <EmptyState detail="Aún no hay candidatos registrados." />
           ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -434,9 +454,7 @@ function Dashboard() {
             </p>
           </div>
           {resumen.scoresRecientes.length === 0 ? (
-            <div className="flex h-64 items-center justify-center text-sm text-slate-400">
-              Aún no hay scores de afinidad evaluados.
-            </div>
+            <EmptyState detail="Aún no hay scores de afinidad evaluados." />
           ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -502,9 +520,7 @@ function Dashboard() {
             </p>
           </div>
           {resumen.topHabilidades.length === 0 ? (
-            <div className="flex h-64 items-center justify-center text-sm text-slate-400">
-              Aún no hay perfiles con habilidades extraídas.
-            </div>
+            <EmptyState detail="Aún no hay perfiles con habilidades extraídas." />
           ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
